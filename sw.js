@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cuaderno-campo-v10';
+const CACHE_NAME = 'cuaderno-campo-v11';
 const ASSETS = [
   './',
   './index.html',

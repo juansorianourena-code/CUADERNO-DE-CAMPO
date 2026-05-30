@@ -1158,3 +1158,47 @@ body {
     color: var(--primary);
     filter: drop-shadow(0 4px 8px rgba(75, 96, 67, 0.4));
 }
+
+/* Nuevos Estilos para Menú Principal (Opción 1) */
+.main-menu-grid {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 24px 24px 0 0;
+    padding: 24px 20px 40px;
+    width: 100%;
+    max-width: 500px;
+    position: absolute;
+    bottom: 0;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.1);
+}
+
+.main-menu-grid .grid-item {
+    background: rgba(75, 96, 67, 0.05);
+    border: 1px solid rgba(75, 96, 67, 0.1);
+    border-radius: 16px;
+    padding: 20px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.main-menu-grid .grid-item:active {
+    transform: scale(0.95);
+    background: rgba(75, 96, 67, 0.1);
+}
+
+.main-menu-grid .grid-item i {
+    font-size: 2rem;
+    color: var(--primary);
+}
+
+.main-menu-grid .grid-item span {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}

@@ -742,6 +742,12 @@ function loadState() {
 function switchView(viewName) {
     state.currentView = viewName;
     
+    // Si el menú está abierto, cerrarlo
+    const overlay = document.getElementById('main-menu-overlay');
+    if (overlay && overlay.classList.contains('active')) {
+        overlay.classList.remove('active');
+    }
+    
     // Toggle active classes on bottom navigation
     document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
         btn.classList.remove('active');
@@ -2809,6 +2815,7 @@ function renderHoy() {
     renderHoyTareas();
     renderHoyAlertas();
     renderHoyCalendario();
+    fetchAndRenderRainfall();
 }
 
 function renderHoyTareas() {
@@ -2934,7 +2941,27 @@ function switchDatosTab(tab) {
 function renderDatos() {
     renderEconomia();
     if (datosTab === 'estadisticas') renderStats();
-    if (datosTab === 'lluvia') fetchAndRenderRainfall();
+}
+
+// ============================================================
+// --- MAIN MENU OVERLAY (Option 1) ---
+// ============================================================
+function toggleMainMenu() {
+    const overlay = document.getElementById('main-menu-overlay');
+    if (!overlay) return;
+    
+    // Si ya está abierto, lo cerramos
+    if (overlay.classList.contains('active')) {
+        overlay.classList.remove('active');
+    } else {
+        overlay.classList.add('active');
+        
+        // Remove active state from all bottom nav except menu
+        document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.getElementById('nav-menu').classList.add('active');
+    }
 }
 
 // ============================================================

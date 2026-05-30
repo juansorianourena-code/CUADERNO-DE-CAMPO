@@ -433,6 +433,37 @@
                         <!-- Inyectado por JS -->
                     </div>
                 </div>
+
+                <!-- Lluvia / Clima -->
+                <div class="card" id="hoy-lluvia-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <span class="card-title" style="margin: 0;"><i class="ph ph-cloud-rain"></i> Precipitación Real</span>
+                        <span id="rainfall-total" style="font-size: 1rem; font-weight: 800; color: #3b82f6;">0.0 L/m²</span>
+                    </div>
+                    <p class="card-subtitle">Datos reales de precipitación acumulada diaria (L/m²) desde Open-Meteo Archive.</p>
+
+                    <!-- Month navigation -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.15); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px;">
+                        <button class="btn btn-secondary" style="width: auto; padding: 6px; border-radius: 6px; margin: 0;" onclick="prevRainfallMonth()">
+                            <i class="ph ph-caret-left" style="font-size: 1.1rem;"></i>
+                        </button>
+                        <span id="rainfall-month-label" style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary);">Mayo 2026</span>
+                        <button class="btn btn-secondary" style="width: auto; padding: 6px; border-radius: 6px; margin: 0;" onclick="nextRainfallMonth()">
+                            <i class="ph ph-caret-right" style="font-size: 1.1rem;"></i>
+                        </button>
+                    </div>
+
+                    <!-- Chart -->
+                    <div id="rainfall-chart" style="width: 100%; overflow: hidden; border-radius: 8px; background: rgba(59,130,246,0.03); border: 1px solid rgba(59,130,246,0.1); padding: 8px;">
+                        <!-- SVG Inyectado por JS -->
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; padding: 0 4px;">
+                        <span>Día 1</span>
+                        <span style="display: flex; align-items: center; gap: 4px;"><span style="width:10px; height:10px; background:#3b82f6; border-radius:2px; display:inline-block;"></span>+10 L/m²</span>
+                        <span style="display: flex; align-items: center; gap: 4px;"><span style="width:10px; height:10px; background:#60a5fa; border-radius:2px; display:inline-block;"></span>3–10 L/m²</span>
+                        <span style="display: flex; align-items: center; gap: 4px;"><span style="width:10px; height:10px; background:#bfdbfe; border-radius:2px; display:inline-block;"></span>0–3 L/m²</span>
+                    </div>
+                </div>
             </section>
 
             <!-- VIEW: DATOS (Economía + Estadísticas + Lluvia) -->
@@ -441,7 +472,6 @@
                 <div class="tab-selector" style="margin-bottom: 1rem;">
                     <button class="tab-btn active" id="datos-tab-economia" onclick="switchDatosTab('economia')">💰 Economía</button>
                     <button class="tab-btn" id="datos-tab-estadisticas" onclick="switchDatosTab('estadisticas')">📊 Estadísticas</button>
-                    <button class="tab-btn" id="datos-tab-lluvia" onclick="switchDatosTab('lluvia')">🌧️ Lluvia</button>
                 </div>
 
                 <!-- SUB-VIEW: ECONOMÍA -->
@@ -511,38 +541,7 @@
                     </div>
                 </div>
 
-                <!-- SUB-VIEW: LLUVIA -->
-                <div id="datos-view-lluvia" class="hidden">
-                    <div class="card">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                            <span class="card-title" style="margin: 0;"><i class="ph ph-cloud-rain"></i> Precipitación Real</span>
-                            <span id="rainfall-total" style="font-size: 1rem; font-weight: 800; color: #3b82f6;">0.0 L/m²</span>
-                        </div>
-                        <p class="card-subtitle">Datos reales de precipitación acumulada diaria (L/m²) desde Open-Meteo Archive.</p>
-
-                        <!-- Month navigation -->
-                        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.15); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px;">
-                            <button class="btn btn-secondary" style="width: auto; padding: 6px; border-radius: 6px; margin: 0;" onclick="prevRainfallMonth()">
-                                <i class="ph ph-caret-left" style="font-size: 1.1rem;"></i>
-                            </button>
-                            <span id="rainfall-month-label" style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary);">Mayo 2026</span>
-                            <button class="btn btn-secondary" style="width: auto; padding: 6px; border-radius: 6px; margin: 0;" onclick="nextRainfallMonth()">
-                                <i class="ph ph-caret-right" style="font-size: 1.1rem;"></i>
-                            </button>
-                        </div>
-
-                        <!-- Chart -->
-                        <div id="rainfall-chart" style="width: 100%; overflow: hidden; border-radius: 8px; background: rgba(59,130,246,0.03); border: 1px solid rgba(59,130,246,0.1); padding: 8px;">
-                            <!-- SVG Inyectado por JS -->
-                        </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; padding: 0 4px;">
-                            <span>Día 1</span>
-                            <span style="display: flex; align-items: center; gap: 4px;"><span style="width:10px; height:10px; background:#3b82f6; border-radius:2px; display:inline-block;"></span>+10 L/m²</span>
-                            <span style="display: flex; align-items: center; gap: 4px;"><span style="width:10px; height:10px; background:#60a5fa; border-radius:2px; display:inline-block;"></span>3–10 L/m²</span>
-                            <span style="display: flex; align-items: center; gap: 4px;"><span style="width:10px; height:10px; background:#bfdbfe; border-radius:2px; display:inline-block;"></span>0–3 L/m²</span>
-                        </div>
-                    </div>
-                </div>
+                <!-- SUB-VIEW: LLUVIA MOVED TO HOY -->
             </section>
 
             <!-- VIEW: CALENDARIO DE TRATAMIENTOS -->
@@ -601,35 +600,51 @@
                 <i class="ph ph-house"></i>
                 <span>Hoy</span>
             </button>
-            <button class="nav-item" onclick="switchView('almacen')" id="nav-almacen">
-                <i class="ph ph-warehouse"></i>
-                <span>Almacén</span>
-            </button>
             <button class="nav-item" onclick="switchView('campo')" id="nav-campo">
                 <i class="ph ph-plant"></i>
                 <span>Campo</span>
             </button>
-            <button class="nav-item" onclick="switchView('croquis')" id="nav-croquis">
-                <i class="ph ph-grid-four"></i>
-                <span>Croquis</span>
-            </button>
-            <button class="nav-item" onclick="switchView('calculadora')" id="nav-calculadora">
-                <i class="ph ph-calculator"></i>
-                <span>Cálculo</span>
+            <button class="nav-item" onclick="switchView('almacen')" id="nav-almacen">
+                <i class="ph ph-warehouse"></i>
+                <span>Almacén</span>
             </button>
             <button class="nav-item" onclick="switchView('diario')" id="nav-diario">
                 <i class="ph ph-book-open"></i>
                 <span>Diario</span>
             </button>
-            <button class="nav-item" onclick="switchView('calendario')" id="nav-calendario">
-                <i class="ph ph-calendar"></i>
-                <span>Calendario</span>
-            </button>
-            <button class="nav-item" onclick="switchView('datos')" id="nav-datos">
-                <i class="ph ph-chart-bar"></i>
-                <span>Datos</span>
+            <button class="nav-item" onclick="toggleMainMenu()" id="nav-menu">
+                <i class="ph ph-squares-four"></i>
+                <span>Menú</span>
             </button>
         </nav>
+
+        <!-- MAIN MENU OVERLAY -->
+        <div id="main-menu-overlay" class="action-sheet-overlay" onclick="toggleMainMenu()">
+            <div class="main-menu-grid" onclick="event.stopPropagation()">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <span style="font-size: 1.2rem; font-weight: 700; color: var(--text-primary);">Herramientas</span>
+                    <button class="close-sheet" onclick="toggleMainMenu()"><i class="ph ph-x"></i></button>
+                </div>
+                <div class="item-grid" style="grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="grid-item" onclick="toggleMainMenu(); switchView('croquis');">
+                        <i class="ph ph-grid-four"></i>
+                        <span>Croquis</span>
+                    </div>
+                    <div class="grid-item" onclick="toggleMainMenu(); switchView('calculadora');">
+                        <i class="ph ph-calculator"></i>
+                        <span>Cálculo</span>
+                    </div>
+                    <div class="grid-item" onclick="toggleMainMenu(); switchView('calendario');">
+                        <i class="ph ph-calendar"></i>
+                        <span>Calendario</span>
+                    </div>
+                    <div class="grid-item" onclick="toggleMainMenu(); switchView('datos');">
+                        <i class="ph ph-chart-bar"></i>
+                        <span>Datos y Ajustes</span>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- MODAL: ADD RIEGO -->
         <div id="modal-add-riego" class="action-sheet-overlay" onclick="closeModal('modal-add-riego')">
