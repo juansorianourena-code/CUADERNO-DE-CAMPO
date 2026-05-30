@@ -93,15 +93,29 @@
                 <div id="subview-huerto">
                     <div class="input-group">
                         <label class="input-label" for="huerto-parcela-select">Selecciona Parcela</label>
-                        <select id="huerto-parcela-select" class="form-select" onchange="changeHuertoParcela()">
-                            <!-- Parcelas de Huerto inyectadas -->
-                        </select>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="huerto-parcela-select" class="form-select" onchange="changeHuertoParcela()" style="flex: 1;">
+                                <!-- Parcelas de Huerto inyectadas -->
+                            </select>
+                            <button class="btn" style="width: 44px; height: 44px; padding: 0; border-radius: var(--radius-sm);" onclick="openAddParcelModal('huerto')" title="Nueva Parcela"><i class="ph ph-plus"></i></button>
+                        </div>
                     </div>
 
                     <!-- Plazo de Seguridad -->
                     <div id="huerto-safety-alert" class="safety-alert safe">
                         <i class="ph-fill ph-check-circle"></i>
                         <span>Sin tratamientos activos. Seguro cosechar.</span>
+                    </div>
+
+                    <!-- Registro de Plantaciones -->
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span class="card-title" style="margin: 0;"><i class="ph ph-flower"></i> Plantas / Cultivos</span>
+                            <button class="btn" style="width: auto; padding: 6px 12px; font-size: 0.75rem; border-radius: 8px;" onclick="openAddPlantingModal()">Añadir Cultivo</button>
+                        </div>
+                        <div id="huerto-plantings-list" class="item-grid" style="gap: 8px;">
+                            <!-- Plantaciones inyectadas -->
+                        </div>
                     </div>
 
                     <!-- Tareas del Huerto -->
@@ -158,9 +172,12 @@
                 <div id="subview-olivar" class="hidden">
                     <div class="input-group">
                         <label class="input-label" for="olivar-parcela-select">Selecciona Finca/Parcela</label>
-                        <select id="olivar-parcela-select" class="form-select" onchange="changeOlivarParcela()">
-                            <!-- Parcelas de Olivar inyectadas -->
-                        </select>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="olivar-parcela-select" class="form-select" onchange="changeOlivarParcela()" style="flex: 1;">
+                                <!-- Parcelas de Olivar inyectadas -->
+                            </select>
+                            <button class="btn" style="width: 44px; height: 44px; padding: 0; border-radius: var(--radius-sm);" onclick="openAddParcelModal('olivar')" title="Nueva Finca"><i class="ph ph-plus"></i></button>
+                        </div>
                     </div>
 
                     <!-- Plazo de Seguridad -->
@@ -476,6 +493,55 @@
             </div>
         </div>
 
+        <!-- MODAL: ADD PLANTING -->
+        <div id="modal-add-planting" class="action-sheet-overlay" onclick="closeModal('modal-add-planting')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title">Registrar Cultivo</span>
+                    <button class="close-sheet" onclick="closeModal('modal-add-planting')"><i class="ph ph-x"></i></button>
+                </div>
+                <form onsubmit="addPlanting(event)">
+                    <div class="input-group">
+                        <label class="input-label" for="plant-name">Variedad / Tipo de Planta</label>
+                        <input type="text" id="plant-name" class="form-input" placeholder="Ej: Tomate Raf, Lechuga Romana, Pimiento" required autocomplete="off">
+                    </div>
+                    <div class="inline-fields">
+                        <div class="input-group">
+                            <label class="input-label" for="plant-qty">Cantidad (Nº de Plantas)</label>
+                            <input type="number" id="plant-qty" class="form-input" placeholder="Ej: 20" required min="1" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="plant-cost">Coste por Planta (€/unidad)</label>
+                            <input type="number" id="plant-cost" class="form-input" placeholder="Ej: 0.80" required step="any" min="0">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="plant-date">Fecha de Plantación</label>
+                        <input type="date" id="plant-date" class="form-input" required>
+                    </div>
+                    <button type="submit" class="btn"><i class="ph ph-floppy-disk"></i> Guardar Plantación</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL: ADD PARCEL / FINCA -->
+        <div id="modal-add-parcel" class="action-sheet-overlay" onclick="closeModal('modal-add-parcel')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title" id="parcel-modal-title">Nueva Parcela</span>
+                    <button class="close-sheet" onclick="closeModal('modal-add-parcel')"><i class="ph ph-x"></i></button>
+                </div>
+                <form onsubmit="addParcel(event)">
+                    <input type="hidden" id="parcel-modal-type">
+                    <div class="input-group">
+                        <label class="input-label" for="parcel-modal-name">Nombre</label>
+                        <input type="text" id="parcel-modal-name" class="form-input" placeholder="Ej: Huerto del Pozo, Finca El Prado" required autocomplete="off">
+                    </div>
+                    <button type="submit" class="btn"><i class="ph ph-floppy-disk"></i> Crear Nueva</button>
+                </form>
+            </div>
+        </div>
+
     </div>
 
     <!-- Script de lógica de la aplicación -->
@@ -484,9 +550,30 @@
     <!-- Register Service Worker -->
     <script>
       if ('serviceWorker' in navigator) {
+        // Force page refresh when a new Service Worker takes control
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
+
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./sw.js').then(reg => {
             console.log('Service Worker registrado con éxito:', reg.scope);
+            
+            // Check for updates on visibility/focus change
+            document.addEventListener('visibilitychange', () => {
+              if (document.visibilityState === 'visible') {
+                reg.update().catch(() => {});
+              }
+            });
+            
+            // Periodically check for updates every 15 seconds
+            setInterval(() => {
+              reg.update().catch(() => {});
+            }, 15000);
           }).catch(err => {
             console.error('Error al registrar el Service Worker:', err);
           });

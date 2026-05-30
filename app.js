@@ -3,17 +3,16 @@ let state = {
     almacen: [],
     huerto: {
         parcelas: {
-            "huerto-a": "Huerto A - Hortalizas",
-            "huerto-b": "Huerto B - Invernadero"
+            "huerto-general": "Huerto Principal"
         },
+        plantaciones: {},
         tareas: {},
         tratamientos: {},
         cosechas: []
     },
     olivar: {
         parcelas: {
-            "olivar-prado": "Finca El Prado",
-            "olivar-lomas": "Finca Las Lomas"
+            "olivar-general": "Olivar Principal"
         },
         tareas: {},
         tratamientos: {},
@@ -23,9 +22,9 @@ let state = {
     diario: [],
     currentView: 'almacen',
     currentCultivoTab: 'huerto',
-    currentHuertoParcela: 'huerto-a',
-    currentOlivarParcela: 'olivar-prado',
-    currentCroquisParcela: 'huerto-a',
+    currentHuertoParcela: 'huerto-general',
+    currentOlivarParcela: 'olivar-general',
+    currentCroquisParcela: 'huerto-general',
     selectedMockPhoto: null
 };
 
@@ -60,98 +59,37 @@ let weatherState = {
 
 // Seed initial data if localStorage is empty
 function seedInitialData() {
-    state.almacen = [
-        { id: 1, name: "Cobre Super WG", type: "fungicida", function: "Control del repilo y tuberculosis en olivo", price: 9.50, stock: 12.0, dose: "3g/L" },
-        { id: 2, name: "Deltametrina 2.5%", type: "insecticida", function: "Control de la mosca del olivo y pulgones", price: 21.00, stock: 4.5, dose: "2.5ml/10L" },
-        { id: 3, name: "Urea Foliar 46%", type: "abono", function: "Estimulador de crecimiento foliar", price: 1.20, stock: 45.0, dose: "15g/L" },
-        { id: 4, name: "Herbicida Total", type: "herbicida", function: "Eliminar malas hierbas en caminos y ruedos", price: 15.80, stock: 8.0, dose: "10ml/L" }
-    ];
-
-    // Seed tasks for Huerto
-    state.huerto.tareas = {
-        "huerto-a": [
-            { id: 101, text: "Colocar tutores a las tomateras", done: false },
-            { id: 102, text: "Limpiar adventicias en pasillos", done: true },
-            { id: 103, text: "Abonar base de berenjenas", done: false }
-        ],
-        "huerto-b": [
-            { id: 104, text: "Revisar riego automático por goteo", done: false },
-            { id: 105, text: "Podar brotes axilares (chupones)", done: false }
-        ]
-    };
-
-    // Seed tasks for Olivar
-    state.olivar.tareas = {
-        "olivar-prado": [
-            { id: 201, text: "Reparar avería en tubería principal de goteo", done: false },
-            { id: 202, text: "Poda de formación olivos jóvenes", done: true }
-        ],
-        "olivar-lomas": [
-            { id: 203, text: "Desbrozar el contorno de los ruedos", done: false },
-            { id: 204, text: "Tratamiento foliar primavera", done: true },
-            { id: 205, text: "Retirar varetas y chupones del tronco", done: false }
-        ]
-    };
-
-    // Seed treatments
-    state.huerto.tratamientos = {
-        "huerto-a": [
-            { id: 301, productName: "Cobre Super WG", date: "2026-05-10", dose: "3g/L", amount: 1.2, safetyDays: 7, expiresAt: "2026-05-17" }
-        ],
-        "huerto-b": []
-    };
-
-    state.olivar.tratamientos = {
-        "olivar-prado": [],
-        "olivar-lomas": [
-            // Active treatment with future expiration relative to current time
-            { id: 302, productName: "Deltametrina 2.5%", date: "2026-05-28", dose: "2.5ml/10L", amount: 1.0, safetyDays: 14, expiresAt: "2026-06-11" }
-        ]
-    };
-
-    // Seed harvests
-    state.huerto.cosechas = [
-        { id: 401, product: "Tomates", count: 18, date: "2026-05-25", parcela: "huerto-b" },
-        { id: 402, product: "Pimientos", count: 8, date: "2026-05-27", parcela: "huerto-a" }
-    ];
-
-    state.olivar.cosechas = [
-        { id: 501, date: "2026-01-12", kg: 2450, yield: 20.8, oil: 509.6, parcela: "olivar-lomas" },
-        { id: 502, date: "2026-01-14", kg: 1890, yield: 19.5, oil: 368.5, parcela: "olivar-prado" }
-    ];
-
-    // Seed diary entries
-    state.diario = [
-        {
-            id: 601,
-            text: "Detectados pulgones en las hojas jóvenes de la berenjena en Huerto A. Hará falta un tratamiento con insecticida en cuanto baje el viento.",
-            date: "2026-05-27 09:30",
-            photo: MOCK_PHOTOS.plaga.url
+    state.almacen = [];
+    state.huerto = {
+        parcelas: {
+            "huerto-general": "Huerto Principal"
         },
-        {
-            id: 602,
-            text: "Terminada la recolecta del primer líneo de aceituna en Finca Las Lomas. Calidad excepcional y rendimiento graso muy estable de 20.8%.",
-            date: "2026-01-12 17:00",
-            photo: MOCK_PHOTOS.cosecha.url
-        }
-    ];
+        plantaciones: {},
+        tareas: {},
+        tratamientos: {},
+        cosechas: []
+    };
+    state.olivar = {
+        parcelas: {
+            "olivar-general": "Olivar Principal"
+        },
+        tareas: {},
+        tratamientos: {},
+        cosechas: []
+    };
+    state.diario = [];
+    state.croquis = {};
 
-    // Seed croquis grids (4x4 cells)
-    const parcelas = ["huerto-a", "huerto-b", "olivar-prado", "olivar-lomas"];
-    parcelas.forEach(p => {
+    // Seed croquis grid for default parcels
+    const defaultParcels = ["huerto-general", "olivar-general"];
+    defaultParcels.forEach(p => {
         state.croquis[p] = [];
         const isOlivar = p.startsWith("olivar");
         for (let i = 1; i <= 16; i++) {
-            let cellState = "normal";
-            // Randomly seed some interesting statuses
-            if (i === 3) cellState = "treated";
-            if (i === 6) cellState = "pending";
-            if (i === 11 && isOlivar) cellState = "plaga";
-            
             state.croquis[p].push({
                 id: i,
                 label: isOlivar ? `Olivo ${i}` : `Zona ${i}`,
-                state: cellState
+                state: "normal"
             });
         }
     });
@@ -163,17 +101,46 @@ function saveState() {
     updateUI();
 }
 
+// ... Load State with migration/backward compatibility ...
 function loadState() {
     const data = localStorage.getItem('cuaderno_campo_data');
     if (data) {
         try {
             state = JSON.parse(data);
-            // Ensure views and subtabs are reset safely
+            
+            // Safety checks for new properties or structures
             if (!state.currentView) state.currentView = 'almacen';
             if (!state.currentCultivoTab) state.currentCultivoTab = 'huerto';
-            if (!state.currentHuertoParcela) state.currentHuertoParcela = 'huerto-a';
-            if (!state.currentOlivarParcela) state.currentOlivarParcela = 'olivar-prado';
-            if (!state.currentCroquisParcela) state.currentCroquisParcela = 'huerto-a';
+            
+            if (!state.huerto) state.huerto = {};
+            if (!state.huerto.parcelas || Object.keys(state.huerto.parcelas).length === 0) {
+                state.huerto.parcelas = { "huerto-general": "Huerto Principal" };
+            }
+            if (!state.huerto.plantaciones) state.huerto.plantaciones = {};
+            if (!state.huerto.tareas) state.huerto.tareas = {};
+            if (!state.huerto.tratamientos) state.huerto.tratamientos = {};
+            if (!state.huerto.cosechas) state.huerto.cosechas = [];
+            
+            if (!state.olivar) state.olivar = {};
+            if (!state.olivar.parcelas || Object.keys(state.olivar.parcelas).length === 0) {
+                state.olivar.parcelas = { "olivar-general": "Olivar Principal" };
+            }
+            if (!state.olivar.tareas) state.olivar.tareas = {};
+            if (!state.olivar.tratamientos) state.olivar.tratamientos = {};
+            if (!state.olivar.cosechas) state.olivar.cosechas = [];
+            
+            if (!state.currentHuertoParcela || !state.huerto.parcelas[state.currentHuertoParcela]) {
+                state.currentHuertoParcela = Object.keys(state.huerto.parcelas)[0];
+            }
+            if (!state.currentOlivarParcela || !state.olivar.parcelas[state.currentOlivarParcela]) {
+                state.currentOlivarParcela = Object.keys(state.olivar.parcelas)[0];
+            }
+            if (!state.currentCroquisParcela) {
+                state.currentCroquisParcela = state.currentHuertoParcela;
+            }
+            
+            if (!state.croquis) state.croquis = {};
+            if (!state.diario) state.diario = [];
         } catch (e) {
             console.error("Error al parsear datos de localstorage, reseteando...", e);
             seedInitialData();
@@ -423,6 +390,138 @@ function populateParcelDropdowns() {
     });
 }
 
+// --- DYNAMIC PARCEL MANAGEMENT ---
+function openAddParcelModal(type) {
+    document.getElementById('parcel-modal-type').value = type;
+    document.getElementById('parcel-modal-title').innerText = type === 'huerto' ? 'Nueva Parcela de Huerto' : 'Nueva Finca de Olivar';
+    document.getElementById('parcel-modal-name').value = '';
+    openModal('modal-add-parcel');
+}
+
+function addParcel(e) {
+    e.preventDefault();
+    const type = document.getElementById('parcel-modal-type').value;
+    const name = document.getElementById('parcel-modal-name').value.trim();
+    if (!name) return;
+
+    const id = `${type}-${Date.now()}`;
+    state[type].parcelas[id] = name;
+
+    // Initialize lists
+    state[type].tareas[id] = [];
+    state[type].tratamientos[id] = [];
+    if (type === 'huerto') {
+        if (!state.huerto.plantaciones) state.huerto.plantaciones = {};
+        state.huerto.plantaciones[id] = [];
+    }
+
+    // Set as current active
+    if (type === 'huerto') {
+        state.currentHuertoParcela = id;
+    } else {
+        state.currentOlivarParcela = id;
+    }
+
+    saveState();
+    closeModal('modal-add-parcel');
+    renderCampo();
+    showToast(`Creada: ${name}`, "success");
+}
+
+// --- PLANTINGS REGISTRY (Huerto) ---
+function openAddPlantingModal() {
+    document.getElementById('plant-name').value = '';
+    document.getElementById('plant-qty').value = '';
+    document.getElementById('plant-cost').value = '';
+    document.getElementById('plant-date').value = getTodayString();
+    openModal('modal-add-planting');
+}
+
+function addPlanting(e) {
+    e.preventDefault();
+    const pId = state.currentHuertoParcela;
+    const name = document.getElementById('plant-name').value.trim();
+    const qty = parseInt(document.getElementById('plant-qty').value) || 0;
+    const cost = parseFloat(document.getElementById('plant-cost').value) || 0;
+    const dateVal = document.getElementById('plant-date').value;
+
+    if (!name || qty <= 0 || cost < 0) return;
+
+    if (!state.huerto.plantaciones) state.huerto.plantaciones = {};
+    if (!state.huerto.plantaciones[pId]) state.huerto.plantaciones[pId] = [];
+
+    const newPlanting = {
+        id: Date.now(),
+        name: name,
+        qty: qty,
+        cost: cost,
+        date: dateVal,
+        status: "active"
+    };
+
+    state.huerto.plantaciones[pId].push(newPlanting);
+
+    // Auto log to journal
+    const totalCost = qty * cost;
+    const noteText = `Nueva plantación en ${state.huerto.parcelas[pId]}: ${qty} plantas de ${name} (Coste: ${cost.toFixed(2)}€/ud, Total: ${totalCost.toFixed(2)}€).`;
+    state.diario.push({
+        id: Date.now() + 1,
+        text: noteText,
+        date: `${dateVal} ${getNowTimeString()}`,
+        photo: MOCK_PHOTOS.riego.url
+    });
+
+    saveState();
+    closeModal('modal-add-planting');
+    renderHuerto();
+    showToast("Plantación guardada", "success");
+}
+
+function deletePlanting(plantingId, pId) {
+    if (confirm("¿Estás seguro de que quieres eliminar esta plantación?")) {
+        state.huerto.plantaciones[pId] = state.huerto.plantaciones[pId].filter(p => p.id !== plantingId);
+        saveState();
+        renderHuerto();
+        showToast("Plantación eliminada", "info");
+    }
+}
+
+function renderPlantings(pId) {
+    const listEl = document.getElementById('huerto-plantings-list');
+    listEl.innerHTML = '';
+
+    if (!state.huerto.plantaciones) state.huerto.plantaciones = {};
+    const plantings = state.huerto.plantaciones[pId] || [];
+
+    if (plantings.length === 0) {
+        listEl.innerHTML = `<div class="empty-state" style="padding: 10px;"><span style="font-size:0.8rem;">Ningún cultivo registrado en esta parcela.</span></div>`;
+        return;
+    }
+
+    plantings.forEach(p => {
+        const totalCost = p.qty * p.cost;
+        const card = document.createElement('div');
+        card.className = "item-card";
+        card.innerHTML = `
+            <div class="item-header">
+                <span class="item-title">${escapeHTML(p.name)}</span>
+                <span class="item-info-line" style="font-weight:700;">${p.date}</span>
+            </div>
+            <div class="item-info-line">Cantidad: <span>${p.qty} plantas</span></div>
+            <div class="item-info-line">Precio unitario: <span>${p.cost.toFixed(2)} €</span></div>
+            <div class="item-info-line" style="font-weight: 700; color: var(--text-primary); margin-top: 2px;">
+                Coste total: <span style="color: var(--primary-light);">${totalCost.toFixed(2)} €</span>
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
+                <button class="btn btn-danger" style="width: auto; padding: 6px 10px; font-size: 0.75rem; border-radius: 8px;" onclick="deletePlanting(${p.id}, '${pId}')">
+                    <i class="ph ph-trash"></i>
+                </button>
+            </div>
+        `;
+        listEl.appendChild(card);
+    });
+}
+
 // --- HUERTO SUB-LOGIC ---
 function changeHuertoParcela() {
     state.currentHuertoParcela = document.getElementById('huerto-parcela-select').value;
@@ -436,8 +535,11 @@ function renderHuerto() {
     // Ensure lists exist for this parcel key
     if (!state.huerto.tareas[pId]) state.huerto.tareas[pId] = [];
     if (!state.huerto.tratamientos[pId]) state.huerto.tratamientos[pId] = [];
+    if (!state.huerto.plantaciones) state.huerto.plantaciones = {};
+    if (!state.huerto.plantaciones[pId]) state.huerto.plantaciones[pId] = [];
 
     renderTasks('huerto', pId);
+    renderPlantings(pId);
     renderTreatments('huerto', pId);
     checkSafetyPeriod('huerto', pId);
 }
@@ -1066,6 +1168,17 @@ function renderEconomia() {
 
     huertoKeys.forEach(k => calculateCost(state.huerto.tratamientos[k]));
     olivarKeys.forEach(k => calculateCost(state.olivar.tratamientos[k]));
+
+    // Calculate plantings costs (Huerto)
+    if (state.huerto.plantaciones) {
+        const plantingKeys = Object.keys(state.huerto.plantaciones);
+        plantingKeys.forEach(k => {
+            const plantings = state.huerto.plantaciones[k] || [];
+            plantings.forEach(p => {
+                totalExpenses += p.qty * p.cost;
+            });
+        });
+    }
 
     // Calculate revenue from harvests
     // Tomates/Pimientos: 0.35€ per unit estimated
