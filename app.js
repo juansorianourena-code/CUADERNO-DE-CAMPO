@@ -476,99 +476,115 @@ async function updateSyncUI() {
         persistenceContainer.innerHTML = '';
     }
 
-    // 2. Drive Sync
-    if (!isFileSystemAccessSupported) {
-        syncContainer.innerHTML = `
-            <div class="info-box" style="margin: 0; background: rgba(255, 255, 255, 0.02); border-color: var(--border-color); color: var(--text-secondary);">
-                <i class="ph ph-info" style="color: var(--primary-light);"></i>
-                <div style="font-size: 0.8rem;">
-                    <strong>Sincronización automática no soportada:</strong> Tu navegador actual (Safari/iOS) no permite acceso directo a archivos. Los datos se guardan de forma muy segura en la memoria interna (IndexedDB), pero te recomendamos descargar copias periódicas de seguridad usando el botón <strong>Exportar</strong>.
-                </div>
+    // 2. Build Cloud + Drive sync HTML
+    let html = `
+        <!-- Tarjeta de Sincronización en la Nube -->
+        <div class="sync-status-card connected" style="display: flex; flex-direction: column; gap: 8px; background: rgba(56, 142, 60, 0.06); border: 1px dashed rgba(56, 142, 60, 0.18); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                    <i class="ph-fill ph-cloud-check" style="font-size: 1.15rem; color: var(--success);"></i>
+                    Sincronización en la Nube
+                </span>
+                <span style="background: rgba(56, 142, 60, 0.12); color: var(--success); font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase;">Activa</span>
             </div>
-        `;
-        return;
-    }
+            <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.45;">
+                ✨ Tus datos se guardan solos en tu base de datos cloud privada. Sincronización instantánea entre tu móvil y tu ordenador.
+            </div>
+        </div>
+    `;
 
-    const savedHandle = await getFromIndexedDB('file_handle');
-    if (!savedHandle) {
-        syncContainer.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <div class="info-box" style="margin: 0; background: rgba(255, 255, 255, 0.03); border-color: var(--border-color);">
-                    <i class="ph ph-folder" style="color: var(--text-muted); font-size: 1.2rem; margin-top: 1px;"></i>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">
-                        <strong>Sincroniza con Google Drive:</strong> Vincula un archivo local para que el cuaderno se auto-guarde en tu disco.
-                        <br><span style="color: var(--primary-light);">Ruta recomendada: selecciona <code>datos/cuaderno_data.json</code> en tu carpeta de Google Drive.</span>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-secondary" onclick="linkExistingFile()" style="flex: 1; padding: 10px; font-size: 0.8rem; border-radius: 8px;">
-                        <i class="ph ph-link"></i> Vincular Archivo
-                    </button>
-                    <button class="btn" onclick="createNewSyncFile()" style="flex: 1; padding: 10px; font-size: 0.8rem; border-radius: 8px;">
-                        <i class="ph ph-file-plus"></i> Crear Nuevo
-                    </button>
+    if (!isFileSystemAccessSupported) {
+        // Mobile view: inform that direct Google Drive file link is desktop-only
+        html += `
+            <div class="info-box" style="margin: 0; background: rgba(255, 255, 255, 0.02); border-color: var(--border-color); color: var(--text-secondary); padding: 10px; font-size: 0.75rem; display: flex; align-items: flex-start; gap: 8px;">
+                <i class="ph ph-desktop" style="color: var(--text-muted); font-size: 1.1rem; margin-top: 2px;"></i>
+                <div style="line-height: 1.35;">
+                    <strong>Google Drive (Escritorio):</strong> La vinculación directa a archivos del disco está limitada a ordenadores. En móvil, la base de datos en la nube de arriba se encarga de todo.
                 </div>
             </div>
         `;
     } else {
-        const fileName = savedHandle.name;
-        if (linkedFileHandle) {
-            syncContainer.innerHTML = `
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <div class="sync-status-card connected" style="display: flex; flex-direction: column; gap: 8px; background: rgba(143, 167, 107, 0.08); border: 1px solid rgba(143, 167, 107, 0.2); padding: 12px; border-radius: var(--radius-sm);">
-                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                            <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
-                                <i class="ph-fill ph-check-circle" style="color: var(--success); font-size: 1.1rem;"></i> Sincronización Activa
-                            </span>
-                            <span class="status-badge" style="background: rgba(143,167,107,0.15); color: var(--success); font-size: 0.7rem; font-weight: 700; padding: 4px 8px; border-radius: 20px; text-transform: uppercase;">Conectado</span>
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted); border-top: 1px solid rgba(143,167,107,0.15); padding-top: 6px; margin-top: 2px; line-height: 1.4;">
-                            Archivo: <strong>${fileName}</strong>
-                            <br><span style="color: var(--success); font-weight: 700; display: inline-block; margin-top: 4px;">✨ ¡Todos los cambios se guardan solos! No tienes que pulsar ningún botón.</span>
+        // Desktop view: show normal file picker options
+        const savedHandle = await getFromIndexedDB('file_handle');
+        if (!savedHandle) {
+            html += `
+                <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 8px;">
+                    <div class="info-box" style="margin: 0; background: rgba(255, 255, 255, 0.03); border-color: var(--border-color); padding: 10px;">
+                        <i class="ph ph-folder" style="color: var(--text-muted); font-size: 1.1rem; margin-top: 1px;"></i>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.35;">
+                            <strong>Google Drive local (Ordenador):</strong> Si estás en tu Mac, puedes vincular un archivo local para guardar una copia directa en tu carpeta de Drive.
                         </div>
                     </div>
-                    <details class="advanced-sync-details" style="margin-top: 4px;">
-                        <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; display: flex; align-items: center; gap: 4px; outline: none; list-style: none;">
-                            <i class="ph ph-gear" style="font-size: 0.85rem;"></i> Acciones avanzadas (manuales)
-                        </summary>
-                        <div style="display: flex; gap: 8px; margin-top: 8px;">
-                            <button class="btn btn-secondary" onclick="forceSaveToFile()" style="flex: 1; padding: 8px; font-size: 0.75rem; border-radius: 8px;" title="Sobrescribir archivo de Drive con los datos locales">
-                                <i class="ph ph-cloud-arrow-up"></i> Forzar Subida
-                            </button>
-                            <button class="btn btn-secondary" onclick="forceLoadFromFile()" style="flex: 1; padding: 8px; font-size: 0.75rem; border-radius: 8px;" title="Sobrescribir local con los datos del archivo de Drive">
-                                <i class="ph ph-cloud-arrow-down"></i> Forzar Bajada
-                            </button>
-                            <button class="btn btn-danger" onclick="unlinkFile()" style="width: auto; padding: 8px 12px; border-radius: 8px;" title="Desvincular archivo">
-                                <i class="ph ph-link-break"></i>
-                            </button>
-                        </div>
-                    </details>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-secondary" onclick="linkExistingFile()" style="flex: 1; padding: 10px; font-size: 0.8rem; border-radius: 8px;">
+                            <i class="ph ph-link"></i> Vincular Archivo
+                        </button>
+                        <button class="btn" onclick="createNewSyncFile()" style="flex: 1; padding: 10px; font-size: 0.8rem; border-radius: 8px;">
+                            <i class="ph ph-file-plus"></i> Crear Nuevo
+                        </button>
+                    </div>
                 </div>
             `;
         } else {
-            syncContainer.innerHTML = `
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <div class="sync-status-card disconnected" style="display: flex; align-items: center; justify-content: space-between; background: rgba(230, 194, 98, 0.08); border: 1px solid rgba(230, 194, 98, 0.2); padding: 12px; border-radius: var(--radius-sm);">
-                        <div style="display: flex; flex-direction: column; gap: 2px;">
-                            <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
-                                <i class="ph-fill ph-warning" style="color: var(--warning); font-size: 1.1rem;"></i> Sincronización Pausada
-                            </span>
-                            <span style="font-size: 0.75rem; color: var(--text-muted); padding-left: 24px;">Archivo: <strong>${fileName}</strong></span>
+            const fileName = savedHandle.name;
+            if (linkedFileHandle) {
+                html += `
+                    <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 8px;">
+                        <div class="sync-status-card connected" style="display: flex; flex-direction: column; gap: 8px; background: rgba(143, 167, 107, 0.08); border: 1px solid rgba(143, 167, 107, 0.2); padding: 12px; border-radius: var(--radius-sm);">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                                    <i class="ph-fill ph-check-circle" style="color: var(--success); font-size: 1.1rem;"></i> Google Drive Local
+                                </span>
+                                <span class="status-badge" style="background: rgba(143,167,107,0.15); color: var(--success); font-size: 0.7rem; font-weight: 700; padding: 4px 8px; border-radius: 20px; text-transform: uppercase;">Conectado</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); border-top: 1px solid rgba(143,167,107,0.15); padding-top: 6px; margin-top: 2px; line-height: 1.4;">
+                                Archivo: <strong>${fileName}</strong>
+                            </div>
                         </div>
-                        <span class="status-badge" style="background: rgba(230,194,98,0.15); color: var(--warning); font-size: 0.7rem; font-weight: 700; padding: 4px 8px; border-radius: 20px; text-transform: uppercase;">Sin Permiso</span>
+                        <details class="advanced-sync-details" style="margin-top: 4px;">
+                            <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; display: flex; align-items: center; gap: 4px; outline: none; list-style: none;">
+                                <i class="ph ph-gear" style="font-size: 0.85rem;"></i> Acciones avanzadas (manuales)
+                            </summary>
+                            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                <button class="btn btn-secondary" onclick="forceSaveToFile()" style="flex: 1; padding: 8px; font-size: 0.75rem; border-radius: 8px;" title="Sobrescribir archivo de Drive con los datos locales">
+                                    <i class="ph ph-cloud-arrow-up"></i> Forzar Subida
+                                </button>
+                                <button class="btn btn-secondary" onclick="forceLoadFromFile()" style="flex: 1; padding: 8px; font-size: 0.75rem; border-radius: 8px;" title="Sobrescribir local con los datos del archivo de Drive">
+                                    <i class="ph ph-cloud-arrow-down"></i> Forzar Bajada
+                                </button>
+                                <button class="btn btn-danger" onclick="unlinkFile()" style="width: auto; padding: 8px 12px; border-radius: 8px;" title="Desvincular archivo">
+                                    <i class="ph ph-link-break"></i>
+                                </button>
+                            </div>
+                        </details>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <button class="btn" onclick="reconnectFile()" style="padding: 10px; font-size: 0.8rem; border-radius: 8px; width: 100%;">
-                            <i class="ph ph-key"></i> Autorizar y Sincronizar
-                        </button>
-                        <button class="btn btn-danger" onclick="unlinkFile()" style="padding: 8px; font-size: 0.75rem; border-radius: 8px; width: 100%;">
-                            <i class="ph ph-link-break"></i> Cancelar Vinculación
-                        </button>
+                `;
+            } else {
+                html += `
+                    <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 8px;">
+                        <div class="sync-status-card disconnected" style="display: flex; align-items: center; justify-content: space-between; background: rgba(230, 194, 98, 0.08); border: 1px solid rgba(230, 194, 98, 0.2); padding: 12px; border-radius: var(--radius-sm);">
+                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                                <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                                    <i class="ph-fill ph-warning" style="color: var(--warning); font-size: 1.1rem;"></i> Google Drive Local Pausado
+                                </span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted); padding-left: 24px;">Archivo: <strong>${fileName}</strong></span>
+                            </div>
+                            <span class="status-badge" style="background: rgba(230,194,98,0.15); color: var(--warning); font-size: 0.7rem; font-weight: 700; padding: 4px 8px; border-radius: 20px; text-transform: uppercase;">Sin Permiso</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <button class="btn" onclick="reconnectFile()" style="padding: 10px; font-size: 0.8rem; border-radius: 8px; width: 100%;">
+                                <i class="ph ph-key"></i> Autorizar y Sincronizar
+                            </button>
+                            <button class="btn btn-danger" onclick="unlinkFile()" style="padding: 8px; font-size: 0.75rem; border-radius: 8px; width: 100%;">
+                                <i class="ph ph-link-break"></i> Cancelar Vinculación
+                            </button>
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+            }
         }
     }
+    syncContainer.innerHTML = html;
 }
 
 // --- CLOUD DB SYNC LOGIC (KVdb.io) ---
