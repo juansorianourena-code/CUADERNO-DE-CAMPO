@@ -105,23 +105,23 @@ body {
 
 .bottom-nav {
     position: fixed;
-    bottom: 20px;
+    bottom: 16px;
     left: 50%;
     transform: translateX(-50%);
-    width: 92%;
-    max-width: 460px;
-    height: 72px;
-    background: rgba(255, 255, 255, 0.9);
+    width: 96%;
+    max-width: 480px;
+    height: 68px;
+    background: rgba(255, 255, 255, 0.92);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
     border: 1px solid var(--border-color);
-    border-radius: 24px;
+    border-radius: 22px;
     display: flex;
     align-items: center;
     justify-content: space-around;
     box-shadow: var(--shadow);
     z-index: 1000;
-    padding: 0 10px;
+    padding: 0 4px;
 }
 
 .nav-item {
@@ -131,15 +131,18 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    font-size: 0.65rem;
+    gap: 2px;
+    font-size: 0.55rem;
     font-weight: 600;
     cursor: pointer;
-    padding: 8px 12px;
-    border-radius: 16px;
+    padding: 6px 4px;
+    border-radius: 14px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     flex: 1;
     min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .nav-item.active {
@@ -148,7 +151,7 @@ body {
 }
 
 .nav-item i {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     transition: transform 0.2s ease;
 }
 

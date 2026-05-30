@@ -1830,17 +1830,31 @@ function renderCroquis() {
     // Populate select
     const select = document.getElementById('croquis-parcela-select');
     if (!select) return;
+
+    // --- FIX: Read the CURRENT select value BEFORE rebuilding the options ---
+    // If the select already has a value (user just changed it), preserve it.
+    // Otherwise fall back to the saved state.
+    const userSelectedValue = select.value || state.currentCroquisParcela;
+
     select.innerHTML = '';
 
     // Join parcels from Huerto and Olivar
     const huertoKeys = Object.keys(state.huerto.parcelas);
     const olivarKeys = Object.keys(state.olivar.parcelas);
 
+    // Collect all valid keys to validate the selection
+    const allKeys = [...huertoKeys, ...olivarKeys];
+
+    // Determine which parcel to show: prefer the user's live selection, then saved state
+    const targetParcel = allKeys.includes(userSelectedValue)
+        ? userSelectedValue
+        : (allKeys.includes(state.currentCroquisParcela) ? state.currentCroquisParcela : allKeys[0]);
+
     huertoKeys.forEach(k => {
         const opt = document.createElement('option');
         opt.value = k;
         opt.innerText = `Huerto: ${state.huerto.parcelas[k]}`;
-        opt.selected = (state.currentCroquisParcela === k);
+        opt.selected = (targetParcel === k);
         select.appendChild(opt);
     });
 
@@ -1848,12 +1862,12 @@ function renderCroquis() {
         const opt = document.createElement('option');
         opt.value = k;
         opt.innerText = `Olivar: ${state.olivar.parcelas[k]}`;
-        opt.selected = (state.currentCroquisParcela === k);
+        opt.selected = (targetParcel === k);
         select.appendChild(opt);
     });
 
     // Draw Grid
-    const parcelId = select.value;
+    const parcelId = targetParcel;
     if (!parcelId) return;
     
     state.currentCroquisParcela = parcelId;
