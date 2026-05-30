@@ -156,6 +156,27 @@
                             <!-- Tratamientos inyectados -->
                         </div>
                     </div>
+
+                    <!-- Riego -->
+                    <div class="card">
+                        <div id="huerto-riego-container">
+                            <!-- Inyectado por JS -->
+                        </div>
+                    </div>
+
+                    <!-- Fertilización -->
+                    <div class="card">
+                        <div id="huerto-fertilizacion-container">
+                            <!-- Inyectado por JS -->
+                        </div>
+                    </div>
+
+                    <!-- Alertas de Plagas -->
+                    <div class="card">
+                        <div id="huerto-plagas-container">
+                            <!-- Inyectado por JS -->
+                        </div>
+                    </div>
                 </div>
 
                 <!-- OLIVAR SUB-VIEW -->
@@ -222,6 +243,27 @@
                         </div>
                         <div id="olivar-treatments-list" class="item-grid">
                             <!-- Tratamientos inyectados -->
+                        </div>
+                    </div>
+
+                    <!-- Riego -->
+                    <div class="card">
+                        <div id="olivar-riego-container">
+                            <!-- Inyectado por JS -->
+                        </div>
+                    </div>
+
+                    <!-- Fertilización -->
+                    <div class="card">
+                        <div id="olivar-fertilizacion-container">
+                            <!-- Inyectado por JS -->
+                        </div>
+                    </div>
+
+                    <!-- Alertas de Plagas -->
+                    <div class="card">
+                        <div id="olivar-plagas-container">
+                            <!-- Inyectado por JS -->
                         </div>
                     </div>
                 </div>
@@ -354,49 +396,146 @@
                 </div>
             </section>
 
-            <!-- VIEW: ECONOMÍA Y AJUSTES -->
-            <section id="view-economia" class="view-content hidden">
-                <!-- Tarjetas financieras -->
-                <div class="finance-summary">
-                    <div class="finance-card">
-                        <div class="finance-label">Gastos (Productos)</div>
-                        <div class="finance-value expense" id="fin-expenses">0.00 €</div>
-                    </div>
-                    <div class="finance-card">
-                        <div class="finance-label">Ingresos Cosechas</div>
-                        <div class="finance-value income" id="fin-income">0.00 €</div>
-                    </div>
-                </div>
-                <div class="finance-card" style="width: 100%; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 1.5rem;">
-                    <div class="finance-label" style="margin: 0; text-align: left;">Balance Neto Estimado</div>
-                    <div class="finance-value balance" id="fin-balance" style="font-size: 1.5rem;">0.00 €</div>
-                </div>
-
-                <!-- Sincronización Local y Seguridad -->
+            <!-- VIEW: HOY (Pantalla de inicio) -->
+            <section id="view-hoy" class="view-content">
+                <!-- Fase Lunar -->
                 <div class="card">
-                    <span class="card-title"><i class="ph ph-arrows-clockwise"></i> Sincronización y Seguridad</span>
-                    <p class="card-subtitle">Tus datos se guardan solos en la nube y en tu almacenamiento local.</p>
-
-                    <!-- Google Drive / Local File Sync Section -->
-                    <div id="sync-container" class="sync-panel" style="margin-bottom: 15px;">
-                        <!-- Se inyecta dinámicamente por JS (updateSyncUI) -->
+                    <div id="lunar-widget">
+                        <!-- Inyectado por JS -->
                     </div>
+                </div>
 
-                    <!-- Botón Almacenamiento Persistente -->
-                    <div class="persistence-section" id="persistence-container" style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
-                        <!-- Se inyecta dinámicamente por JS -->
+                <!-- Tareas Pendientes -->
+                <div class="card">
+                    <span class="card-title"><i class="ph ph-check-square"></i> Tareas Pendientes</span>
+                    <div id="hoy-tareas-list" style="margin-top: 8px;">
+                        <!-- Inyectado por JS -->
                     </div>
+                </div>
 
-                    <!-- Backup Manual (Siempre visible como alternativa/seguridad) -->
-                    <div style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
-                        <span class="card-title" style="font-size: 0.9rem; margin-bottom: 5px;"><i class="ph ph-floppy-disk"></i> Copia de Seguridad Manual</span>
-                        <div class="backup-section">
-                            <button class="btn btn-secondary" onclick="exportData()"><i class="ph ph-download-simple"></i> Exportar</button>
-                            <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()"><i class="ph ph-upload-simple"></i> Importar</button>
+                <!-- Alertas de Plagas Activas -->
+                <div class="card danger-accent">
+                    <span class="card-title"><i class="ph ph-bug"></i> Alertas de Plagas</span>
+                    <div id="hoy-alertas-list" style="margin-top: 8px;">
+                        <!-- Inyectado por JS -->
+                    </div>
+                </div>
+
+                <!-- Tratamientos de Hoy -->
+                <div class="card">
+                    <span class="card-title"><i class="ph ph-calendar-check"></i> Tratamientos Programados Hoy</span>
+                    <div id="hoy-calendario-list" style="margin-top: 8px;">
+                        <!-- Inyectado por JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: DATOS (Economía + Estadísticas + Lluvia) -->
+            <section id="view-datos" class="view-content hidden">
+                <!-- Sub-tabs -->
+                <div class="tab-selector" style="margin-bottom: 1rem;">
+                    <button class="tab-btn active" id="datos-tab-economia" onclick="switchDatosTab('economia')">💰 Economía</button>
+                    <button class="tab-btn" id="datos-tab-estadisticas" onclick="switchDatosTab('estadisticas')">📊 Estadísticas</button>
+                    <button class="tab-btn" id="datos-tab-lluvia" onclick="switchDatosTab('lluvia')">🌧️ Lluvia</button>
+                </div>
+
+                <!-- SUB-VIEW: ECONOMÍA -->
+                <div id="datos-view-economia">
+                    <!-- Tarjetas financieras -->
+                    <div class="finance-summary">
+                        <div class="finance-card">
+                            <div class="finance-label">Gastos (Productos)</div>
+                            <div class="finance-value expense" id="fin-expenses">0.00 €</div>
                         </div>
-                        <input type="file" id="import-file-input" style="display: none;" onchange="importData(event)" accept=".json">
-                        
-                        <button class="btn btn-danger" style="margin-top: 15px; width: 100%;" onclick="resetAppData()"><i class="ph ph-trash"></i> Restablecer Aplicación</button>
+                        <div class="finance-card">
+                            <div class="finance-label">Ingresos Cosechas</div>
+                            <div class="finance-value income" id="fin-income">0.00 €</div>
+                        </div>
+                    </div>
+                    <div class="finance-card" style="width: 100%; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 1.5rem;">
+                        <div class="finance-label" style="margin: 0; text-align: left;">Balance Neto Estimado</div>
+                        <div class="finance-value balance" id="fin-balance" style="font-size: 1.5rem;">0.00 €</div>
+                    </div>
+
+                    <!-- Coste por unidad -->
+                    <div class="card">
+                        <span class="card-title"><i class="ph ph-currency-eur"></i> Coste por Unidad Producida</span>
+                        <p class="card-subtitle">Coste estimado de tratamientos dividido entre la producción total.</p>
+                        <div id="cost-per-unit-list" style="margin-top: 10px;">
+                            <!-- Inyectado por JS -->
+                        </div>
+                    </div>
+
+                    <!-- Exportar PDF -->
+                    <div class="card">
+                        <span class="card-title"><i class="ph ph-file-pdf"></i> Exportar Informe</span>
+                        <p class="card-subtitle">Genera un PDF con el resumen del almacén, balance económico y últimas anotaciones del diario.</p>
+                        <button class="btn" onclick="exportToPDF()" style="margin-top: 8px;"><i class="ph ph-printer"></i> Exportar PDF</button>
+                    </div>
+
+                    <!-- Sincronización Local y Seguridad -->
+                    <div class="card">
+                        <span class="card-title"><i class="ph ph-arrows-clockwise"></i> Sincronización y Seguridad</span>
+                        <p class="card-subtitle">Tus datos se guardan solos en la nube y en tu almacenamiento local.</p>
+                        <div id="sync-container" class="sync-panel" style="margin-bottom: 15px;">
+                            <!-- Se inyecta dinámicamente por JS (updateSyncUI) -->
+                        </div>
+                        <div class="persistence-section" id="persistence-container" style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                            <!-- Se inyecta dinámicamente por JS -->
+                        </div>
+                        <div style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                            <span class="card-title" style="font-size: 0.9rem; margin-bottom: 5px;"><i class="ph ph-floppy-disk"></i> Copia de Seguridad Manual</span>
+                            <div class="backup-section">
+                                <button class="btn btn-secondary" onclick="exportData()"><i class="ph ph-download-simple"></i> Exportar</button>
+                                <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()"><i class="ph ph-upload-simple"></i> Importar</button>
+                            </div>
+                            <input type="file" id="import-file-input" style="display: none;" onchange="importData(event)" accept=".json">
+                            <button class="btn btn-danger" style="margin-top: 15px; width: 100%;" onclick="resetAppData()"><i class="ph ph-trash"></i> Restablecer Aplicación</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUB-VIEW: ESTADÍSTICAS -->
+                <div id="datos-view-estadisticas" class="hidden">
+                    <div class="card">
+                        <span class="card-title"><i class="ph ph-chart-bar"></i> Rendimiento de Cultivos</span>
+                        <p class="card-subtitle">Ranking por producción total. Con comparativa interanual si hay datos de varios años.</p>
+                        <div id="stats-ranking-list" style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                            <!-- Inyectado por JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUB-VIEW: LLUVIA -->
+                <div id="datos-view-lluvia" class="hidden">
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span class="card-title" style="margin: 0;"><i class="ph ph-cloud-rain"></i> Precipitación Real</span>
+                            <span id="rainfall-total" style="font-size: 1rem; font-weight: 800; color: #3b82f6;">0.0 L/m²</span>
+                        </div>
+                        <p class="card-subtitle">Datos reales de precipitación acumulada diaria (L/m²) desde Open-Meteo Archive.</p>
+
+                        <!-- Month navigation -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.15); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px;">
+                            <button class="btn btn-secondary" style="width: auto; padding: 6px; border-radius: 6px; margin: 0;" onclick="prevRainfallMonth()">
+                                <i class="ph ph-caret-left" style="font-size: 1.1rem;"></i>
+                            </button>
+                            <span id="rainfall-month-label" style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary);">Mayo 2026</span>
+                            <button class="btn btn-secondary" style="width: auto; padding: 6px; border-radius: 6px; margin: 0;" onclick="nextRainfallMonth()">
+                                <i class="ph ph-caret-right" style="font-size: 1.1rem;"></i>
+                            </button>
+                        </div>
+
+                        <!-- Chart -->
+                        <div id="rainfall-chart" style="width: 100%; overflow: hidden; border-radius: 8px; background: rgba(59,130,246,0.03); border: 1px solid rgba(59,130,246,0.1); padding: 8px;">
+                            <!-- SVG Inyectado por JS -->
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; padding: 0 4px;">
+                            <span>Día 1</span>
+                            <span style="display: flex; align-items: center; gap: 4px;"><span style="width:10px; height:10px; background:#3b82f6; border-radius:2px; display:inline-block;"></span>+10 L/m²</span>
+                            <span style="display: flex; align-items: center; gap: 4px;"><span style="width:10px; height:10px; background:#60a5fa; border-radius:2px; display:inline-block;"></span>3–10 L/m²</span>
+                            <span style="display: flex; align-items: center; gap: 4px;"><span style="width:10px; height:10px; background:#bfdbfe; border-radius:2px; display:inline-block;"></span>0–3 L/m²</span>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -453,7 +592,11 @@
 
         <!-- Bottom Tab Bar -->
         <nav class="bottom-nav">
-            <button class="nav-item active" onclick="switchView('almacen')" id="nav-almacen">
+            <button class="nav-item active" onclick="switchView('hoy')" id="nav-hoy">
+                <i class="ph ph-house"></i>
+                <span>Hoy</span>
+            </button>
+            <button class="nav-item" onclick="switchView('almacen')" id="nav-almacen">
                 <i class="ph ph-warehouse"></i>
                 <span>Almacén</span>
             </button>
@@ -477,11 +620,107 @@
                 <i class="ph ph-calendar"></i>
                 <span>Calendario</span>
             </button>
-            <button class="nav-item" onclick="switchView('economia')" id="nav-economia">
-                <i class="ph ph-coins"></i>
-                <span>Economía</span>
+            <button class="nav-item" onclick="switchView('datos')" id="nav-datos">
+                <i class="ph ph-chart-bar"></i>
+                <span>Datos</span>
             </button>
         </nav>
+
+        <!-- MODAL: ADD RIEGO -->
+        <div id="modal-add-riego" class="action-sheet-overlay" onclick="closeModal('modal-add-riego')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title">Registrar Riego</span>
+                    <button class="close-sheet" onclick="closeModal('modal-add-riego')"><i class="ph ph-x"></i></button>
+                </div>
+                <form onsubmit="saveRiego(event)">
+                    <input type="hidden" id="riego-type">
+                    <input type="hidden" id="riego-parcela">
+                    <div class="input-group">
+                        <label class="input-label" for="riego-method">Método</label>
+                        <select id="riego-method" class="form-select">
+                            <option value="Goteo">Goteo</option>
+                            <option value="Aspersión">Aspersión</option>
+                            <option value="Manguera">Manguera</option>
+                            <option value="Inundación">Inundación</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="riego-date">Fecha</label>
+                        <input type="date" id="riego-date" class="form-input" required>
+                    </div>
+                    <div class="inline-fields">
+                        <div class="input-group">
+                            <label class="input-label" for="riego-liters">Litros totales</label>
+                            <input type="number" id="riego-liters" class="form-input" placeholder="Ej: 50" required>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="riego-minutes">Minutos</label>
+                            <input type="number" id="riego-minutes" class="form-input" placeholder="Ej: 45" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn"><i class="ph ph-drop"></i> Guardar Riego</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL: ADD FERTILIZACION -->
+        <div id="modal-add-fertilizacion" class="action-sheet-overlay" onclick="closeModal('modal-add-fertilizacion')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title">Programar Fertilización</span>
+                    <button class="close-sheet" onclick="closeModal('modal-add-fertilizacion')"><i class="ph ph-x"></i></button>
+                </div>
+                <form onsubmit="saveFertilizacion(event)">
+                    <input type="hidden" id="fertilizacion-type">
+                    <input type="hidden" id="fertilizacion-parcela">
+                    <div class="input-group">
+                        <label class="input-label" for="fertilizacion-product">Producto del Almacén</label>
+                        <select id="fertilizacion-product" class="form-select" required></select>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="fertilizacion-tipo">Tipo de Abonado</label>
+                        <select id="fertilizacion-tipo" class="form-select">
+                            <option value="Foliar">Foliar</option>
+                            <option value="Radicular">Radicular / Fertirriego</option>
+                            <option value="Fondo">Abonado de Fondo</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="fertilizacion-amount">Cantidad (Kg/L)</label>
+                        <input type="number" id="fertilizacion-amount" class="form-input" placeholder="Ej: 5" required step="any">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="fertilizacion-date">Fecha Programada</label>
+                        <input type="date" id="fertilizacion-date" class="form-input" required>
+                    </div>
+                    <button type="submit" class="btn"><i class="ph ph-plant"></i> Programar</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL: ADD PLAGA -->
+        <div id="modal-add-plaga" class="action-sheet-overlay" onclick="closeModal('modal-add-plaga')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title">Alerta de Plaga</span>
+                    <button class="close-sheet" onclick="closeModal('modal-add-plaga')"><i class="ph ph-x"></i></button>
+                </div>
+                <form onsubmit="savePlagaAlert(event)">
+                    <input type="hidden" id="plaga-type">
+                    <input type="hidden" id="plaga-parcela">
+                    <div class="input-group">
+                        <label class="input-label" for="plaga-name">Nombre de Plaga / Tarea</label>
+                        <input type="text" id="plaga-name" class="form-input" placeholder="Ej: Revisar pulgón, Trampas mosca" required autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="plaga-interval">Intervalo de Revisión (Días)</label>
+                        <input type="number" id="plaga-interval" class="form-input" value="14" required min="1">
+                    </div>
+                    <button type="submit" class="btn danger-accent"><i class="ph ph-bug"></i> Crear Alerta</button>
+                </form>
+            </div>
+        </div>
 
         <!-- MODAL: ADD PRODUCT -->
         <div id="modal-add-product" class="action-sheet-overlay" onclick="closeModal('modal-add-product')">
@@ -524,6 +763,10 @@
                     <div class="input-group">
                         <label class="input-label" for="prod-function">Función ("¿Para qué sirve?")</label>
                         <input type="text" id="prod-function" class="form-input" placeholder="Ej: Contra malezas de hoja ancha, aporte de Nitrógeno" required autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="prod-composition">Composición (opcional)</label>
+                        <input type="text" id="prod-composition" class="form-input" placeholder="Ej: N:22%, P:15%, K:11% — o Glifosato 36%" autocomplete="off">
                     </div>
                     <button type="submit" class="btn"><i class="ph ph-floppy-disk"></i> Guardar en Almacén</button>
                 </form>

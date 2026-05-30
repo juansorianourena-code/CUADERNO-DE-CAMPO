@@ -2,25 +2,27 @@
 let state = {
     almacen: [],
     huerto: {
-        parcelas: {
-            "huerto-general": "Huerto Principal"
-        },
+        parcelas: { "huerto-general": "Huerto Principal" },
         plantaciones: {},
         tareas: {},
         tratamientos: {},
-        cosechas: []
+        cosechas: [],
+        riego: {},
+        fertilizaciones: {},
+        plagaAlertas: {}
     },
     olivar: {
-        parcelas: {
-            "olivar-general": "Olivar Principal"
-        },
+        parcelas: { "olivar-general": "Olivar Principal" },
         tareas: {},
         tratamientos: {},
-        cosechas: []
+        cosechas: [],
+        riego: {},
+        fertilizaciones: {},
+        plagaAlertas: {}
     },
     croquis: {},
     diario: [],
-    currentView: 'almacen',
+    currentView: 'hoy',
     currentCultivoTab: 'huerto',
     currentHuertoParcela: 'huerto-general',
     currentOlivarParcela: 'olivar-general',
@@ -78,39 +80,35 @@ const WEATHER_COORDINATES = {
 function seedInitialData() {
     state.almacen = [];
     state.huerto = {
-        parcelas: {
-            "huerto-general": "Huerto Principal"
-        },
+        parcelas: { "huerto-general": "Huerto Principal" },
         plantaciones: {},
         tareas: {},
         tratamientos: {},
-        cosechas: []
+        cosechas: [],
+        riego: {},
+        fertilizaciones: {},
+        plagaAlertas: {}
     };
     state.olivar = {
-        parcelas: {
-            "olivar-general": "Olivar Principal"
-        },
+        parcelas: { "olivar-general": "Olivar Principal" },
         tareas: {},
         tratamientos: {},
-        cosechas: []
+        cosechas: [],
+        riego: {},
+        fertilizaciones: {},
+        plagaAlertas: {}
     };
     state.diario = [];
     state.croquis = {};
 
-    // Seed croquis grid for default parcels
     const defaultParcels = ["huerto-general", "olivar-general"];
     defaultParcels.forEach(p => {
         state.croquis[p] = [];
         const isOlivar = p.startsWith("olivar");
         for (let i = 1; i <= 16; i++) {
-            state.croquis[p].push({
-                id: i,
-                label: isOlivar ? `Olivo ${i}` : `Zona ${i}`,
-                state: "normal"
-            });
+            state.croquis[p].push({ id: i, label: isOlivar ? `Olivo ${i}` : `Zona ${i}`, state: "normal" });
         }
     });
-    
     state.weatherLocation = 'albacete';
     state.croquisDimensions = {
         "huerto-general": { rows: 4, cols: 4 },
@@ -717,7 +715,16 @@ function loadState() {
                 state.currentCroquisParcela = state.currentHuertoParcela;
             }
             
+            // --- Migration: new fields for existing data ---
             if (!state.croquis) state.croquis = {};
+            if (!state.huerto.riego) state.huerto.riego = {};
+            if (!state.huerto.fertilizaciones) state.huerto.fertilizaciones = {};
+            if (!state.huerto.plagaAlertas) state.huerto.plagaAlertas = {};
+            if (!state.olivar.riego) state.olivar.riego = {};
+            if (!state.olivar.fertilizaciones) state.olivar.fertilizaciones = {};
+            if (!state.olivar.plagaAlertas) state.olivar.plagaAlertas = {};
+
+
             if (!state.diario) state.diario = [];
             if (!state.weatherLocation) state.weatherLocation = 'albacete';
             if (!state.croquisDimensions) state.croquisDimensions = {};
@@ -753,11 +760,12 @@ function switchView(viewName) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // Custom view initializers
-    if (viewName === 'almacen') renderAlmacen();
+    if (viewName === 'hoy') renderHoy();
+    else if (viewName === 'almacen') renderAlmacen();
     else if (viewName === 'campo') renderCampo();
     else if (viewName === 'croquis') renderCroquis();
     else if (viewName === 'diario') renderDiario();
-    else if (viewName === 'economia') renderEconomia();
+    else if (viewName === 'datos') renderDatos();
     else if (viewName === 'calendario') renderCalendar();
 }
 
@@ -909,6 +917,7 @@ function renderAlmacen() {
                 <span class="item-badge ${badgeClass}">${p.type}</span>
             </div>
             <div class="item-info-line">Función: <span>${escapeHTML(p.function)}</span></div>
+            ${p.composition ? `<div class="item-info-line">Composición: <span style="color: var(--primary); font-size:0.78rem;">${escapeHTML(p.composition)}</span></div>` : ''}
             <div class="item-info-line">Dosis Fab: <span>${escapeHTML(p.dose)}</span></div>
             <div class="item-info-line">Precio: <span>${p.price.toFixed(2)} €/ud</span></div>
             
@@ -945,6 +954,7 @@ function addProduct(e) {
     const price = parseFloat(document.getElementById('prod-price').value) || 0;
     const dose = document.getElementById('prod-dose').value;
     const func = document.getElementById('prod-function').value;
+    const composition = document.getElementById('prod-composition').value.trim();
 
     const newProd = {
         id: Date.now(),
@@ -953,7 +963,8 @@ function addProduct(e) {
         stock,
         price,
         dose,
-        function: func
+        function: func,
+        composition: composition || ''
     };
 
     state.almacen.push(newProd);
@@ -1021,76 +1032,8 @@ function renderCampo() {
     }
 }
 
-function renderStats() {
-    const listEl = document.getElementById('stats-ranking-list');
-    if (!listEl) return;
-    
-    // Agrupar producción total por producto
-    const totals = {}; // { 'Tomates': { value: X, unit: 'uds' } }
-    
-    // 1. Huerto
-    const huertoCosechas = state.huerto.cosechas || [];
-    huertoCosechas.forEach(c => {
-        const prod = c.product || "Cultivo Desconocido";
-        if (!totals[prod]) {
-            totals[prod] = { value: 0, unit: "uds" };
-        }
-        totals[prod].value += parseFloat(c.count) || 0;
-    });
-    
-    // 2. Olivar (cosechas de aceituna)
-    const olivarCosechas = state.olivar.cosechas || [];
-    olivarCosechas.forEach(c => {
-        const prod = "Aceitunas";
-        if (!totals[prod]) {
-            totals[prod] = { value: 0, unit: "Kg" };
-        }
-        totals[prod].value += parseFloat(c.kg) || 0;
-    });
-    
-    // Ordenar de mayor a menor producción
-    const sorted = Object.entries(totals)
-        .map(([name, data]) => ({ name, value: data.value, unit: data.unit }))
-        .sort((a, b) => b.value - a.value);
-        
-    if (sorted.length === 0) {
-        listEl.innerHTML = `
-            <div style="text-align: center; padding: 25px 10px; color: var(--text-muted); font-size: 0.85rem;">
-                <i class="ph ph-trend-up" style="font-size: 2.2rem; display: block; margin-bottom: 8px; opacity: 0.5;"></i>
-                No hay cosechas registradas. Los cultivos que coseches aparecerán aquí ordenados por rendimiento.
-            </div>
-        `;
-        return;
-    }
-    
-    const maxVal = Math.max(...sorted.map(item => item.value), 1);
-    
-    let html = '';
-    sorted.forEach((item, index) => {
-        const pct = Math.round((item.value / maxVal) * 100);
-        let badge = `<span style="font-size:0.75rem; font-weight:700; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border-radius: 50%; color: var(--text-muted);">${index + 1}</span>`;
-        if (index === 0) badge = `<span style="font-size:1.1rem; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;">🏆</span>`;
-        else if (index === 1) badge = `<span style="font-size:1.1rem; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;">🥈</span>`;
-        else if (index === 2) badge = `<span style="font-size:1.1rem; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;">🥉</span>`;
-        
-        html += `
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        ${badge}
-                        <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary);">${escapeHTML(item.name)}</span>
-                    </div>
-                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-light);">${item.value.toLocaleString()} ${item.unit}</span>
-                </div>
-                <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.03);">
-                    <div style="width: ${pct}%; height: 100%; background: linear-gradient(90deg, var(--primary-light), var(--primary)); border-radius: 4px; transition: width 0.5s ease;"></div>
-                </div>
-            </div>
-        `;
-    });
-    
-    listEl.innerHTML = html;
-}
+// renderStats is defined below with enhanced year comparison logic
+// (see the new implementation near end of file)
 
 function populateParcelDropdowns() {
     // Huerto dropdown
@@ -1263,12 +1206,18 @@ function renderHuerto() {
     if (!state.huerto.tratamientos[pId]) state.huerto.tratamientos[pId] = [];
     if (!state.huerto.plantaciones) state.huerto.plantaciones = {};
     if (!state.huerto.plantaciones[pId]) state.huerto.plantaciones[pId] = [];
+    if (!state.huerto.riego) state.huerto.riego = {};
+    if (!state.huerto.fertilizaciones) state.huerto.fertilizaciones = {};
+    if (!state.huerto.plagaAlertas) state.huerto.plagaAlertas = {};
 
     renderTasks('huerto', pId);
     renderPlantings(pId);
     renderTreatments('huerto', pId);
     checkSafetyPeriod('huerto', pId);
     renderHarvestCounters();
+    renderRiego('huerto', pId);
+    renderFertilizaciones('huerto', pId);
+    renderPlagaAlertas('huerto', pId);
 }
 
 // --- OLIVAR SUB-LOGIC ---
@@ -1284,11 +1233,17 @@ function renderOlivar() {
     // Ensure lists exist for this parcel key
     if (!state.olivar.tareas[pId]) state.olivar.tareas[pId] = [];
     if (!state.olivar.tratamientos[pId]) state.olivar.tratamientos[pId] = [];
+    if (!state.olivar.riego) state.olivar.riego = {};
+    if (!state.olivar.fertilizaciones) state.olivar.fertilizaciones = {};
+    if (!state.olivar.plagaAlertas) state.olivar.plagaAlertas = {};
 
     renderTasks('olivar', pId);
     renderTreatments('olivar', pId);
     checkSafetyPeriod('olivar', pId);
     renderOlivarHarvestHistory();
+    renderRiego('olivar', pId);
+    renderFertilizaciones('olivar', pId);
+    renderPlagaAlertas('olivar', pId);
 }
 
 // --- SHARED TASKS ENGINE ---
@@ -2123,67 +2078,8 @@ function deleteJournalEntry(id) {
     }
 }
 
-// --- ECONOMÍA LOGIC ---
-function renderEconomia() {
-    let totalExpenses = 0;
-    
-    // Calculate treatments costs
-    // Deducted amount of product * product price
-    const huertoKeys = Object.keys(state.huerto.tratamientos);
-    const olivarKeys = Object.keys(state.olivar.tratamientos);
-
-    const calculateCost = (list) => {
-        list.forEach(t => {
-            // Find product matching by name in Almacén (historical match)
-            // If deleted, we guess a standard 10€ price
-            const p = state.almacen.find(prod => prod.name === t.productName);
-            const unitPrice = p ? p.price : 10.0;
-            totalExpenses += t.amount * unitPrice;
-        });
-    };
-
-    huertoKeys.forEach(k => calculateCost(state.huerto.tratamientos[k]));
-    olivarKeys.forEach(k => calculateCost(state.olivar.tratamientos[k]));
-
-    // Calculate plantings costs (Huerto)
-    if (state.huerto.plantaciones) {
-        const plantingKeys = Object.keys(state.huerto.plantaciones);
-        plantingKeys.forEach(k => {
-            const plantings = state.huerto.plantaciones[k] || [];
-            plantings.forEach(p => {
-                totalExpenses += p.qty * p.cost;
-            });
-        });
-    }
-
-    // Calculate revenue from harvests
-    // Tomates/Pimientos: 0.35€ per unit estimated
-    // Olive oil: 6.50€ per kg of oil estimated
-    let totalIncome = 0;
-
-    state.huerto.cosechas.forEach(h => {
-        const itemVal = 0.40; // 0.40€ por hortaliza
-        totalIncome += h.count * itemVal;
-    });
-
-    state.olivar.cosechas.forEach(h => {
-        const oilPrice = 6.80; // 6.80€ por Kg de aceite
-        totalIncome += h.oil * oilPrice;
-    });
-
-    const balance = totalIncome - totalExpenses;
-
-    document.getElementById('fin-expenses').innerText = `${totalExpenses.toFixed(2)} €`;
-    document.getElementById('fin-income').innerText = `${totalIncome.toFixed(2)} €`;
-    
-    const balEl = document.getElementById('fin-balance');
-    balEl.innerText = `${balance.toFixed(2)} €`;
-    if (balance >= 0) {
-        balEl.className = "finance-value balance income";
-    } else {
-        balEl.className = "finance-value balance expense";
-    }
-}
+// renderEconomia is defined below with fertilization costs and cost-per-unit
+// (see the new implementation near end of file)
 
 // --- TOAST NOTIFICATIONS ---
 let toastTimeout;
@@ -2319,12 +2215,12 @@ function escapeHTML(str) {
 }
 
 function updateUI() {
-    // Renders active views reactively
-    if (state.currentView === 'almacen') renderAlmacen();
+    if (state.currentView === 'hoy') renderHoy();
+    else if (state.currentView === 'almacen') renderAlmacen();
     else if (state.currentView === 'campo') renderCampo();
     else if (state.currentView === 'croquis') renderCroquis();
     else if (state.currentView === 'diario') renderDiario();
-    else if (state.currentView === 'economia') renderEconomia();
+    else if (state.currentView === 'datos') renderDatos();
     else if (state.currentView === 'calendario') renderCalendar();
 }
 
@@ -2485,7 +2381,849 @@ function nextMonth() {
     renderCalendar();
 }
 
+// ============================================================
+// --- FASE LUNAR (cálculo matemático puro) ---
+// ============================================================
+function getLunarPhase(date = new Date()) {
+    // Referencia: 6 Ene 2000 fue luna nueva (JD 2451549.5)
+    const lnRef = new Date('2000-01-06T18:14:00Z');
+    const cycle = 29.53058867;
+    const diffMs = date - lnRef;
+    const diffDays = diffMs / 86400000;
+    const phase = ((diffDays % cycle) + cycle) % cycle;
+    const illumination = Math.round(50 * (1 - Math.cos((2 * Math.PI * phase) / cycle)));
+
+    let emoji, name, tip;
+    if (phase < 1.85) { emoji = '🌑'; name = 'Luna Nueva'; tip = 'Poda y siembra de raíz.'; }
+    else if (phase < 7.38) { emoji = '🌒'; name = 'Cuarto Creciente'; tip = 'Buena para sembrar plantas de fruto.'; }
+    else if (phase < 14.77) { emoji = '🌓'; name = 'Luna Creciente'; tip = 'Ideal para injertar y trasplantar.'; }
+    else if (phase < 16.61) { emoji = '🌕'; name = 'Luna Llena'; tip = 'Cosecha frutas, máxima concentración de savia.'; }
+    else if (phase < 22.15) { emoji = '🌖'; name = 'Luna Menguante'; tip = 'Podar, cortar leña, tratamientos fungicidas.'; }
+    else if (phase < 25.38) { emoji = '🌗'; name = 'Cuarto Menguante'; tip = 'Abonado de fondo, laboreo del suelo.'; }
+    else { emoji = '🌘'; name = 'Luna Nueva Próxima'; tip = 'Preparar terreno y planificar siembras.'; }
+
+    return { emoji, name, illumination, tip, phase: Math.round(phase * 10) / 10 };
+}
+
+function renderLunarWidget() {
+    const el = document.getElementById('lunar-widget');
+    if (!el) return;
+    const moon = getLunarPhase();
+    el.innerHTML = `
+        <div style="display:flex; align-items:center; gap:12px;">
+            <span style="font-size:2.4rem; line-height:1;">${moon.emoji}</span>
+            <div>
+                <div style="font-size:0.85rem; font-weight:700; color:var(--text-primary);">${moon.name}</div>
+                <div style="font-size:0.75rem; color:var(--text-secondary);">Iluminación: ${moon.illumination}%</div>
+                <div style="font-size:0.72rem; color:var(--primary); font-style:italic; margin-top:2px;">${moon.tip}</div>
+            </div>
+        </div>
+    `;
+}
+
+// ============================================================
+// --- RIEGO (Registro de riego por parcela) ---
+// ============================================================
+function renderRiego(type, parcelId) {
+    const containerId = `${type}-riego-container`;
+    const el = document.getElementById(containerId);
+    if (!el) return;
+
+    const list = (state[type].riego && state[type].riego[parcelId]) || [];
+    const lastThree = list.slice(-3).reverse();
+
+    let html = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <span class="card-title" style="margin:0; font-size:0.95rem;"><i class="ph ph-drop"></i> Riego</span>
+            <button class="btn" style="width:auto; padding:5px 10px; font-size:0.75rem; border-radius:8px;" onclick="openAddRiegoModal('${type}','${parcelId}')">
+                <i class="ph ph-plus"></i> Registrar
+            </button>
+        </div>
+    `;
+
+    if (lastThree.length === 0) {
+        html += `<div style="font-size:0.78rem; color:var(--text-muted); text-align:center; padding:8px;">Sin registros de riego.</div>`;
+    } else {
+        lastThree.forEach(r => {
+            html += `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(76,201,240,0.05); border:1px solid rgba(76,201,240,0.15); border-radius:10px; padding:8px 12px; margin-bottom:6px;">
+                    <div>
+                        <span style="font-size:0.8rem; font-weight:700; color:var(--text-primary);">${r.method}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">${r.date}</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="font-size:0.8rem; font-weight:700; color:#3b82f6;">${r.liters} L</span>
+                        <span style="font-size:0.72rem; color:var(--text-muted); display:block;">${r.minutes} min</span>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    el.innerHTML = html;
+}
+
+function openAddRiegoModal(type, parcelId) {
+    document.getElementById('riego-type').value = type;
+    document.getElementById('riego-parcela').value = parcelId;
+    document.getElementById('riego-date').value = getTodayString();
+    document.getElementById('riego-minutes').value = '';
+    document.getElementById('riego-liters').value = '';
+    document.getElementById('riego-method').value = 'Goteo';
+    openModal('modal-add-riego');
+}
+
+function saveRiego(e) {
+    e.preventDefault();
+    const type = document.getElementById('riego-type').value;
+    const parcelId = document.getElementById('riego-parcela').value;
+    const date = document.getElementById('riego-date').value;
+    const minutes = parseFloat(document.getElementById('riego-minutes').value) || 0;
+    const liters = parseFloat(document.getElementById('riego-liters').value) || 0;
+    const method = document.getElementById('riego-method').value;
+
+    if (!state[type].riego) state[type].riego = {};
+    if (!state[type].riego[parcelId]) state[type].riego[parcelId] = [];
+
+    state[type].riego[parcelId].push({ id: Date.now(), date, minutes, liters, method });
+    state.diario.push({
+        id: Date.now() + 1,
+        text: `Riego en ${state[type].parcelas[parcelId]}: ${liters}L por ${method.toLowerCase()} durante ${minutes} minutos.`,
+        date: `${date} ${getNowTimeString()}`,
+        photo: null
+    });
+
+    saveState();
+    closeModal('modal-add-riego');
+    renderRiego(type, parcelId);
+    showToast('Riego registrado', 'success');
+}
+
+// ============================================================
+// --- FERTILIZACIÓN PROGRAMADA ---
+// ============================================================
+function renderFertilizaciones(type, parcelId) {
+    const containerId = `${type}-fertilizacion-container`;
+    const el = document.getElementById(containerId);
+    if (!el) return;
+
+    const list = (state[type].fertilizaciones && state[type].fertilizaciones[parcelId]) || [];
+    const lastThree = list.slice(-3).reverse();
+
+    let html = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <span class="card-title" style="margin:0; font-size:0.95rem;"><i class="ph ph-leaf"></i> Fertilización</span>
+            <button class="btn" style="width:auto; padding:5px 10px; font-size:0.75rem; border-radius:8px;" onclick="openAddFertilizacionModal('${type}','${parcelId}')">
+                <i class="ph ph-plus"></i> Registrar
+            </button>
+        </div>
+    `;
+
+    if (lastThree.length === 0) {
+        html += `<div style="font-size:0.78rem; color:var(--text-muted); text-align:center; padding:8px;">Sin abonados registrados.</div>`;
+    } else {
+        lastThree.forEach(f => {
+            html += `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(143,167,107,0.06); border:1px solid rgba(143,167,107,0.18); border-radius:10px; padding:8px 12px; margin-bottom:6px;">
+                    <div>
+                        <span style="font-size:0.8rem; font-weight:700; color:var(--text-primary);">${escapeHTML(f.productName)}</span>
+                        <span style="font-size:0.72rem; color:var(--primary); display:block;">${f.tipoAbonado}</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="font-size:0.8rem; font-weight:700; color:var(--primary-light);">${f.amount} uds</span>
+                        <span style="font-size:0.72rem; color:var(--text-muted); display:block;">${f.date}</span>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    el.innerHTML = html;
+}
+
+function openAddFertilizacionModal(type, parcelId) {
+    const select = document.getElementById('fertilizacion-product');
+    select.innerHTML = '';
+    const abonos = state.almacen.filter(p => p.stock > 0);
+    if (abonos.length === 0) {
+        showToast('No hay productos con stock en el almacén', 'error');
+        return;
+    }
+    abonos.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.innerText = `${p.name} (Stock: ${p.stock.toFixed(1)})`;
+        select.appendChild(opt);
+    });
+    document.getElementById('fertilizacion-type').value = type;
+    document.getElementById('fertilizacion-parcela').value = parcelId;
+    document.getElementById('fertilizacion-date').value = getTodayString();
+    document.getElementById('fertilizacion-amount').value = 1;
+    document.getElementById('fertilizacion-tipo').value = 'Radicular';
+    openModal('modal-add-fertilizacion');
+}
+
+function saveFertilizacion(e) {
+    e.preventDefault();
+    const type = document.getElementById('fertilizacion-type').value;
+    const parcelId = document.getElementById('fertilizacion-parcela').value;
+    const productId = parseInt(document.getElementById('fertilizacion-product').value);
+    const amount = parseFloat(document.getElementById('fertilizacion-amount').value) || 0;
+    const tipoAbonado = document.getElementById('fertilizacion-tipo').value;
+    const date = document.getElementById('fertilizacion-date').value;
+
+    const prod = state.almacen.find(p => p.id === productId);
+    if (!prod) return;
+    if (prod.stock < amount) {
+        showToast('Stock insuficiente en almacén', 'error');
+        return;
+    }
+    prod.stock -= amount;
+
+    if (!state[type].fertilizaciones) state[type].fertilizaciones = {};
+    if (!state[type].fertilizaciones[parcelId]) state[type].fertilizaciones[parcelId] = [];
+
+    state[type].fertilizaciones[parcelId].push({
+        id: Date.now(),
+        productName: prod.name,
+        amount,
+        tipoAbonado,
+        date
+    });
+
+    state.diario.push({
+        id: Date.now() + 1,
+        text: `Abonado en ${state[type].parcelas[parcelId]}: ${amount} uds de ${prod.name} (${tipoAbonado}).`,
+        date: `${date} ${getNowTimeString()}`,
+        photo: null
+    });
+
+    saveState();
+    closeModal('modal-add-fertilizacion');
+    renderFertilizaciones(type, parcelId);
+    showToast('Abonado registrado y stock descontado', 'success');
+}
+
+// ============================================================
+// --- ALERTAS DE PLAGAS ---
+// ============================================================
+function renderPlagaAlertas(type, parcelId) {
+    const containerId = `${type}-plagas-container`;
+    const el = document.getElementById(containerId);
+    if (!el) return;
+
+    const alertas = (state[type].plagaAlertas && state[type].plagaAlertas[parcelId]) || [];
+    const today = getTodayString();
+
+    let html = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <span class="card-title" style="margin:0; font-size:0.95rem;"><i class="ph ph-bug"></i> Alertas de Plagas</span>
+            <button class="btn" style="width:auto; padding:5px 10px; font-size:0.75rem; border-radius:8px;" onclick="openAddPlagaAlertModal('${type}','${parcelId}')">
+                <i class="ph ph-plus"></i> Nueva Alerta
+            </button>
+        </div>
+    `;
+
+    if (alertas.length === 0) {
+        html += `<div style="font-size:0.78rem; color:var(--text-muted); text-align:center; padding:8px;">Sin alertas de plagas configuradas.</div>`;
+    } else {
+        alertas.forEach(a => {
+            const nextReview = a.lastChecked ? addDays(a.lastChecked, a.intervalDays) : today;
+            const isDue = today >= nextReview;
+            const daysLeft = getDaysDiff(today, nextReview);
+            const statusColor = isDue ? 'var(--danger)' : 'var(--success)';
+            const statusText = isDue ? '⚠️ REVISAR AHORA' : `✅ En ${daysLeft}d`;
+            html += `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:${isDue ? 'rgba(201,76,76,0.06)' : 'rgba(56,142,60,0.04)'}; border:1px solid ${isDue ? 'rgba(201,76,76,0.25)' : 'rgba(56,142,60,0.15)'}; border-radius:10px; padding:8px 12px; margin-bottom:6px;">
+                    <div>
+                        <span style="font-size:0.82rem; font-weight:700; color:var(--text-primary);">${escapeHTML(a.name)}</span>
+                        <span style="font-size:0.72rem; color:var(--text-muted); display:block;">Cada ${a.intervalDays} días</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                        <span style="font-size:0.72rem; font-weight:700; color:${statusColor};">${statusText}</span>
+                        ${isDue ? `<button style="font-size:0.7rem; padding:3px 8px; border-radius:6px; border:none; background:var(--success); color:white; cursor:pointer; font-weight:700;" onclick="markPlagaReviewed(${a.id},'${type}','${parcelId}')">Revisado ✓</button>` : ''}
+                        <button style="font-size:0.7rem; padding:2px 6px; border-radius:6px; border:1px solid var(--border-color); background:none; color:var(--text-muted); cursor:pointer;" onclick="deletePlagaAlert(${a.id},'${type}','${parcelId}')">✕</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    el.innerHTML = html;
+}
+
+function openAddPlagaAlertModal(type, parcelId) {
+    document.getElementById('plaga-type').value = type;
+    document.getElementById('plaga-parcela').value = parcelId;
+    document.getElementById('plaga-name').value = '';
+    document.getElementById('plaga-interval').value = 14;
+    openModal('modal-add-plaga');
+}
+
+function savePlagaAlert(e) {
+    e.preventDefault();
+    const type = document.getElementById('plaga-type').value;
+    const parcelId = document.getElementById('plaga-parcela').value;
+    const name = document.getElementById('plaga-name').value.trim();
+    const intervalDays = parseInt(document.getElementById('plaga-interval').value) || 14;
+
+    if (!name) return;
+    if (!state[type].plagaAlertas) state[type].plagaAlertas = {};
+    if (!state[type].plagaAlertas[parcelId]) state[type].plagaAlertas[parcelId] = [];
+
+    state[type].plagaAlertas[parcelId].push({
+        id: Date.now(),
+        name,
+        intervalDays,
+        lastChecked: null
+    });
+
+    saveState();
+    closeModal('modal-add-plaga');
+    renderPlagaAlertas(type, parcelId);
+    showToast(`Alerta "${name}" activada`, 'success');
+}
+
+function markPlagaReviewed(alertId, type, parcelId) {
+    const alertas = state[type].plagaAlertas[parcelId] || [];
+    const a = alertas.find(x => x.id === alertId);
+    if (a) {
+        a.lastChecked = getTodayString();
+        saveState();
+        renderPlagaAlertas(type, parcelId);
+        showToast('Revisión registrada', 'success');
+    }
+}
+
+function deletePlagaAlert(alertId, type, parcelId) {
+    if (!state[type].plagaAlertas || !state[type].plagaAlertas[parcelId]) return;
+    state[type].plagaAlertas[parcelId] = state[type].plagaAlertas[parcelId].filter(a => a.id !== alertId);
+    saveState();
+    renderPlagaAlertas(type, parcelId);
+    showToast('Alerta eliminada', 'info');
+}
+
+// ============================================================
+// --- GRÁFICA DE PRECIPITACIÓN (Open-Meteo Archive) ---
+// ============================================================
+let rainfallChartYear = new Date().getFullYear();
+let rainfallChartMonth = new Date().getMonth(); // 0-indexed
+
+async function fetchAndRenderRainfall() {
+    const loc = state.weatherLocation || 'albacete';
+    const coords = WEATHER_COORDINATES[loc];
+    if (!coords) return;
+
+    const year = rainfallChartYear;
+    const month = rainfallChartMonth;
+    const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const today = new Date();
+    let lastDay = new Date(year, month + 1, 0); // last day of month
+    if (lastDay > today) lastDay = new Date(today.getTime() - 86400000); // cap to yesterday
+    const lastDayStr = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+
+    if (lastDay < new Date(year, month, 1)) {
+        // Month hasn't started yet
+        renderRainfallChart([], year, month);
+        return;
+    }
+
+    const chartEl = document.getElementById('rainfall-chart');
+    if (chartEl) chartEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:0.8rem;"><i class="ph ph-cloud-rain" style="font-size:1.5rem; display:block; margin-bottom:6px;"></i>Cargando datos...</div>';
+
+    try {
+        const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${coords.lat}&longitude=${coords.lon}&start_date=${firstDay}&end_date=${lastDayStr}&daily=precipitation_sum&timezone=Europe%2FMadrid`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('API error');
+        const data = await res.json();
+        const precipData = (data.daily && data.daily.precipitation_sum) || [];
+        renderRainfallChart(precipData, year, month);
+    } catch (err) {
+        console.warn('Error cargando datos de lluvia:', err);
+        if (chartEl) chartEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:0.8rem;">No se pudieron cargar los datos meteorológicos.</div>';
+    }
+}
+
+function renderRainfallChart(data, year, month) {
+    const chartEl = document.getElementById('rainfall-chart');
+    const totalEl = document.getElementById('rainfall-total');
+    const monthEl = document.getElementById('rainfall-month-label');
+    if (!chartEl) return;
+
+    const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    if (monthEl) monthEl.textContent = `${monthNames[month]} ${year}`;
+
+    const total = data.reduce((s, v) => s + (v || 0), 0);
+    if (totalEl) totalEl.textContent = `${total.toFixed(1)} L/m²`;
+
+    if (!data || data.length === 0) {
+        chartEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:0.8rem;">Sin datos disponibles para este período.</div>';
+        return;
+    }
+
+    const maxVal = Math.max(...data.map(v => v || 0), 1);
+    const barWidth = Math.max(8, Math.floor(100 / data.length));
+    const chartWidth = data.length * (barWidth + 3);
+    const chartHeight = 100;
+
+    let svgBars = '';
+    let svgLabels = '';
+    data.forEach((val, i) => {
+        const v = val || 0;
+        const barH = Math.max(v > 0 ? 4 : 0, Math.round((v / maxVal) * (chartHeight - 20)));
+        const x = i * (barWidth + 3);
+        const y = chartHeight - 16 - barH;
+        const color = v > 10 ? '#3b82f6' : v > 3 ? '#60a5fa' : '#bfdbfe';
+        svgBars += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="2" fill="${color}" opacity="0.85"/>`;
+        if ((i + 1) % 5 === 0 || i === 0 || i === data.length - 1) {
+            svgLabels += `<text x="${x + barWidth / 2}" y="${chartHeight - 2}" text-anchor="middle" font-size="8" fill="#88997f">${i + 1}</text>`;
+        }
+        if (v > 0) {
+            svgBars += `<title>Día ${i + 1}: ${v.toFixed(1)} L/m²</title>`;
+        }
+    });
+
+    chartEl.innerHTML = `
+        <svg viewBox="0 0 ${Math.max(chartWidth, 300)} ${chartHeight}" style="width:100%; height:120px;" xmlns="http://www.w3.org/2000/svg">
+            <line x1="0" y1="${chartHeight - 16}" x2="${Math.max(chartWidth, 300)}" y2="${chartHeight - 16}" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
+            ${svgBars}
+            ${svgLabels}
+        </svg>
+    `;
+}
+
+function prevRainfallMonth() {
+    rainfallChartMonth--;
+    if (rainfallChartMonth < 0) { rainfallChartMonth = 11; rainfallChartYear--; }
+    fetchAndRenderRainfall();
+}
+
+function nextRainfallMonth() {
+    rainfallChartMonth++;
+    if (rainfallChartMonth > 11) { rainfallChartMonth = 0; rainfallChartYear++; }
+    fetchAndRenderRainfall();
+}
+
+// ============================================================
+// --- WIDGET DE "HOY" (Pantalla de inicio) ---
+// ============================================================
+function renderHoy() {
+    renderLunarWidget();
+    renderHoyTareas();
+    renderHoyAlertas();
+    renderHoyCalendario();
+}
+
+function renderHoyTareas() {
+    const el = document.getElementById('hoy-tareas-list');
+    if (!el) return;
+    let pendingTasks = [];
+
+    ['huerto', 'olivar'].forEach(type => {
+        Object.entries(state[type].tareas || {}).forEach(([parcelId, tasks]) => {
+            const parcelName = state[type].parcelas[parcelId] || parcelId;
+            (tasks || []).filter(t => !t.done).forEach(t => {
+                pendingTasks.push({ text: t.text, parcel: parcelName, type });
+            });
+        });
+    });
+
+    if (pendingTasks.length === 0) {
+        el.innerHTML = `<div style="font-size:0.8rem; color:var(--success); display:flex; align-items:center; gap:6px;"><i class="ph-fill ph-check-circle"></i> ¡Todo al día! Sin tareas pendientes.</div>`;
+        return;
+    }
+
+    let html = '';
+    pendingTasks.slice(0, 5).forEach(t => {
+        html += `
+            <div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-color);">
+                <i class="ph ph-square" style="color:var(--text-muted); font-size:1rem;"></i>
+                <div>
+                    <div style="font-size:0.82rem; font-weight:600; color:var(--text-primary);">${escapeHTML(t.text)}</div>
+                    <div style="font-size:0.7rem; color:var(--text-muted);">${escapeHTML(t.parcel)}</div>
+                </div>
+            </div>
+        `;
+    });
+    if (pendingTasks.length > 5) {
+        html += `<div style="font-size:0.75rem; color:var(--text-muted); text-align:center; padding-top:6px;">+${pendingTasks.length - 5} tareas más...</div>`;
+    }
+    el.innerHTML = html;
+}
+
+function renderHoyAlertas() {
+    const el = document.getElementById('hoy-alertas-list');
+    if (!el) return;
+    const today = getTodayString();
+    let dueAlertas = [];
+
+    ['huerto', 'olivar'].forEach(type => {
+        Object.entries(state[type].plagaAlertas || {}).forEach(([parcelId, alertas]) => {
+            const parcelName = state[type].parcelas[parcelId] || parcelId;
+            (alertas || []).forEach(a => {
+                const nextReview = a.lastChecked ? addDays(a.lastChecked, a.intervalDays) : today;
+                if (today >= nextReview) {
+                    dueAlertas.push({ ...a, parcel: parcelName });
+                }
+            });
+        });
+    });
+
+    if (dueAlertas.length === 0) {
+        el.innerHTML = `<div style="font-size:0.8rem; color:var(--success); display:flex; align-items:center; gap:6px;"><i class="ph-fill ph-check-circle"></i> Sin alertas de plagas pendientes.</div>`;
+        return;
+    }
+
+    let html = '';
+    dueAlertas.forEach(a => {
+        html += `
+            <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:rgba(201,76,76,0.06); border:1px solid rgba(201,76,76,0.2); border-radius:8px; margin-bottom:6px;">
+                <i class="ph ph-bug" style="color:var(--danger); font-size:1.1rem;"></i>
+                <div>
+                    <div style="font-size:0.82rem; font-weight:700; color:var(--danger);">${escapeHTML(a.name)}</div>
+                    <div style="font-size:0.7rem; color:var(--text-muted);">${escapeHTML(a.parcel)} — Revisar ahora</div>
+                </div>
+            </div>
+        `;
+    });
+    el.innerHTML = html;
+}
+
+function renderHoyCalendario() {
+    const el = document.getElementById('hoy-calendario-list');
+    if (!el) return;
+    const today = getTodayString();
+    const allT = getAllTreatments();
+    const todayT = allT.filter(t => t.date === today);
+
+    if (todayT.length === 0) {
+        el.innerHTML = `<div style="font-size:0.8rem; color:var(--text-muted);">Sin tratamientos programados para hoy.</div>`;
+        return;
+    }
+
+    let html = '';
+    todayT.forEach(t => {
+        const label = t.source === 'huerto' ? '🌱 Huerto' : '🫒 Olivar';
+        html += `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:rgba(75,96,67,0.06); border:1px solid rgba(75,96,67,0.15); border-radius:8px; margin-bottom:6px;">
+                <div>
+                    <div style="font-size:0.82rem; font-weight:700; color:var(--text-primary);">${escapeHTML(t.productName)}</div>
+                    <div style="font-size:0.7rem; color:var(--text-muted);">${label} — ${escapeHTML(t.parcelName)}</div>
+                </div>
+                <span style="font-size:0.7rem; padding:2px 6px; background:rgba(75,96,67,0.1); border-radius:6px; color:var(--primary); font-weight:700;">HOY</span>
+            </div>
+        `;
+    });
+    el.innerHTML = html;
+}
+
+// ============================================================
+// --- VISTA DATOS (Economía + Estadísticas unificadas) ---
+// ============================================================
+let datosTab = 'economia';
+
+function switchDatosTab(tab) {
+    datosTab = tab;
+    ['economia', 'estadisticas', 'lluvia'].forEach(t => {
+        const btn = document.getElementById(`datos-tab-${t}`);
+        const view = document.getElementById(`datos-view-${t}`);
+        if (btn) btn.classList.toggle('active', t === tab);
+        if (view) view.classList.toggle('hidden', t !== tab);
+    });
+    if (tab === 'estadisticas') renderStats();
+    if (tab === 'lluvia') fetchAndRenderRainfall();
+}
+
+function renderDatos() {
+    renderEconomia();
+    if (datosTab === 'estadisticas') renderStats();
+    if (datosTab === 'lluvia') fetchAndRenderRainfall();
+}
+
+// ============================================================
+// --- ECONOMÍA (now contains cost-per-kg) ---
+// ============================================================
+function renderEconomia() {
+    let totalExpenses = 0;
+
+    const huertoKeys = Object.keys(state.huerto.tratamientos);
+    const olivarKeys = Object.keys(state.olivar.tratamientos);
+
+    const calculateCost = (list) => {
+        list.forEach(t => {
+            const p = state.almacen.find(prod => prod.name === t.productName);
+            const unitPrice = p ? p.price : 10.0;
+            totalExpenses += t.amount * unitPrice;
+        });
+    };
+
+    huertoKeys.forEach(k => calculateCost(state.huerto.tratamientos[k]));
+    olivarKeys.forEach(k => calculateCost(state.olivar.tratamientos[k]));
+
+    // Fertilización costs
+    ['huerto', 'olivar'].forEach(type => {
+        Object.values(state[type].fertilizaciones || {}).forEach(list => {
+            (list || []).forEach(f => {
+                const p = state.almacen.find(prod => prod.name === f.productName);
+                const unitPrice = p ? p.price : 10.0;
+                totalExpenses += f.amount * unitPrice;
+            });
+        });
+    });
+
+    if (state.huerto.plantaciones) {
+        Object.values(state.huerto.plantaciones).forEach(plantings => {
+            (plantings || []).forEach(p => { totalExpenses += p.qty * p.cost; });
+        });
+    }
+
+    let totalIncome = 0;
+    state.huerto.cosechas.forEach(h => { totalIncome += h.count * 0.40; });
+    state.olivar.cosechas.forEach(h => { totalIncome += h.oil * 6.80; });
+
+    const balance = totalIncome - totalExpenses;
+
+    const finExp = document.getElementById('fin-expenses');
+    const finInc = document.getElementById('fin-income');
+    const finBal = document.getElementById('fin-balance');
+
+    if (finExp) finExp.innerText = `${totalExpenses.toFixed(2)} €`;
+    if (finInc) finInc.innerText = `${totalIncome.toFixed(2)} €`;
+    if (finBal) {
+        finBal.innerText = `${balance.toFixed(2)} €`;
+        finBal.className = `finance-value balance ${balance >= 0 ? 'income' : 'expense'}`;
+    }
+
+    // Coste por kg/unidad
+    renderCostPerUnit();
+}
+
+function renderCostPerUnit() {
+    const el = document.getElementById('cost-per-unit-list');
+    if (!el) return;
+
+    const products = {};
+
+    state.huerto.cosechas.forEach(h => {
+        if (!products[h.product]) products[h.product] = { units: 0, type: 'huerto' };
+        products[h.product].units += h.count;
+    });
+
+    state.olivar.cosechas.forEach(h => {
+        if (!products['Aceite Oliva']) products['Aceite Oliva'] = { units: 0, type: 'olivar' };
+        products['Aceite Oliva'].units += h.oil;
+    });
+
+    let totalTreatmentCost = 0;
+    ['huerto', 'olivar'].forEach(type => {
+        Object.values(state[type].tratamientos || {}).forEach(list => {
+            (list || []).forEach(t => {
+                const p = state.almacen.find(prod => prod.name === t.productName);
+                totalTreatmentCost += t.amount * (p ? p.price : 10);
+            });
+        });
+    });
+
+    const entries = Object.entries(products);
+    if (entries.length === 0) {
+        el.innerHTML = `<div style="font-size:0.8rem; color:var(--text-muted); text-align:center; padding:10px;">Sin cosechas registradas todavía.</div>`;
+        return;
+    }
+
+    let html = '';
+    entries.forEach(([name, data]) => {
+        const isOlivar = data.type === 'olivar';
+        const costPer = data.units > 0 ? (totalTreatmentCost / entries.length / data.units) : 0;
+        const unit = isOlivar ? 'Kg aceite' : 'uds';
+        html += `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border-color);">
+                <div>
+                    <div style="font-size:0.85rem; font-weight:700; color:var(--text-primary);">${escapeHTML(name)}</div>
+                    <div style="font-size:0.72rem; color:var(--text-muted);">Total: ${data.units.toLocaleString()} ${unit}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:0.85rem; font-weight:700; color:var(--secondary);">${costPer.toFixed(2)} €/${unit}</div>
+                    <div style="font-size:0.7rem; color:var(--text-muted);">coste estimado</div>
+                </div>
+            </div>
+        `;
+    });
+    el.innerHTML = html;
+}
+
+// ============================================================
+// --- ESTADÍSTICAS AMPLIADAS (comparativa + harvest by year) ---
+// ============================================================
+function renderStats() {
+    const listEl = document.getElementById('stats-ranking-list');
+    if (!listEl) return;
+
+    const totals = {};
+    const byYear = {};
+
+    const huertoCosechas = state.huerto.cosechas || [];
+    huertoCosechas.forEach(c => {
+        const prod = c.product || 'Cultivo Desconocido';
+        if (!totals[prod]) totals[prod] = { value: 0, unit: 'uds' };
+        totals[prod].value += parseFloat(c.count) || 0;
+        const yr = c.date ? c.date.substring(0, 4) : 'Sin fecha';
+        if (!byYear[prod]) byYear[prod] = {};
+        if (!byYear[prod][yr]) byYear[prod][yr] = 0;
+        byYear[prod][yr] += parseFloat(c.count) || 0;
+    });
+
+    const olivarCosechas = state.olivar.cosechas || [];
+    olivarCosechas.forEach(c => {
+        const prod = 'Aceitunas';
+        if (!totals[prod]) totals[prod] = { value: 0, unit: 'Kg' };
+        totals[prod].value += parseFloat(c.kg) || 0;
+        const yr = c.date ? c.date.substring(0, 4) : 'Sin fecha';
+        if (!byYear[prod]) byYear[prod] = {};
+        if (!byYear[prod][yr]) byYear[prod][yr] = 0;
+        byYear[prod][yr] += parseFloat(c.kg) || 0;
+    });
+
+    const sorted = Object.entries(totals)
+        .map(([name, data]) => ({ name, value: data.value, unit: data.unit }))
+        .sort((a, b) => b.value - a.value);
+
+    if (sorted.length === 0) {
+        listEl.innerHTML = `<div style="text-align:center; padding:25px 10px; color:var(--text-muted); font-size:0.85rem;"><i class="ph ph-trend-up" style="font-size:2.2rem; display:block; margin-bottom:8px; opacity:0.5;"></i>Sin cosechas registradas. Los cultivos aparecerán aquí.</div>`;
+        return;
+    }
+
+    const maxVal = Math.max(...sorted.map(item => item.value), 1);
+    let html = '';
+
+    sorted.forEach((item, index) => {
+        const pct = Math.round((item.value / maxVal) * 100);
+        let badge = `<span style="font-size:0.75rem; font-weight:700; width:22px; height:22px; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.05); border-radius:50%; color:var(--text-muted);">${index + 1}</span>`;
+        if (index === 0) badge = `<span style="font-size:1.1rem; width:22px; height:22px; display:flex; align-items:center; justify-content:center;">🏆</span>`;
+        else if (index === 1) badge = `<span style="font-size:1.1rem; width:22px; height:22px; display:flex; align-items:center; justify-content:center;">🥈</span>`;
+        else if (index === 2) badge = `<span style="font-size:1.1rem; width:22px; height:22px; display:flex; align-items:center; justify-content:center;">🥉</span>`;
+
+        // Year comparison
+        const years = Object.keys(byYear[item.name] || {}).sort();
+        let compareHtml = '';
+        if (years.length >= 2) {
+            const lastYr = years[years.length - 1];
+            const prevYr = years[years.length - 2];
+            const lastVal = byYear[item.name][lastYr];
+            const prevVal = byYear[item.name][prevYr];
+            const pctChange = prevVal > 0 ? Math.round(((lastVal - prevVal) / prevVal) * 100) : null;
+            if (pctChange !== null) {
+                const arrow = pctChange >= 0 ? '↑' : '↓';
+                const color = pctChange >= 0 ? 'var(--success)' : 'var(--danger)';
+                compareHtml = `<span style="font-size:0.7rem; font-weight:700; color:${color};">${arrow} ${Math.abs(pctChange)}% vs ${prevYr}</span>`;
+            }
+        }
+
+        html += `
+            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        ${badge}
+                        <span style="font-size:0.85rem; font-weight:700; color:var(--text-primary);">${escapeHTML(item.name)}</span>
+                        ${compareHtml}
+                    </div>
+                    <span style="font-size:0.85rem; font-weight:700; color:var(--primary-light);">${item.value.toLocaleString()} ${item.unit}</span>
+                </div>
+                <div style="width:100%; height:8px; background:rgba(0,0,0,0.05); border-radius:4px; overflow:hidden;">
+                    <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, var(--primary-light), var(--primary)); border-radius:4px;"></div>
+                </div>
+            </div>
+        `;
+    });
+
+    listEl.innerHTML = html;
+}
+
+// ============================================================
+// --- EXPORTAR PDF ---
+// ============================================================
+function exportToPDF() {
+    const today = getTodayString();
+    const moon = getLunarPhase();
+
+    let totalExpenses = 0;
+    let totalIncome = 0;
+    ['huerto', 'olivar'].forEach(type => {
+        Object.values(state[type].tratamientos || {}).forEach(list => {
+            (list || []).forEach(t => {
+                const p = state.almacen.find(prod => prod.name === t.productName);
+                totalExpenses += t.amount * (p ? p.price : 10);
+            });
+        });
+    });
+    state.huerto.cosechas.forEach(h => { totalIncome += h.count * 0.40; });
+    state.olivar.cosechas.forEach(h => { totalIncome += h.oil * 6.80; });
+
+    const balance = totalIncome - totalExpenses;
+
+    let almacenRows = state.almacen.map(p => `
+        <tr>
+            <td>${escapeHTML(p.name)}</td>
+            <td>${p.type}</td>
+            <td>${p.stock.toFixed(1)}</td>
+            <td>${p.price.toFixed(2)} €</td>
+            <td>${p.composition || '-'}</td>
+        </tr>
+    `).join('');
+
+    let diarioRows = state.diario.slice(-20).reverse().map(e => `
+        <tr><td>${e.date}</td><td>${escapeHTML(e.text)}</td></tr>
+    `).join('');
+
+    const printContent = `
+        <html><head>
+        <title>Cuaderno de Campo — Informe ${today}</title>
+        <style>
+            body { font-family: Arial, sans-serif; font-size: 12px; color: #283321; padding: 20px; }
+            h1 { color: #4b6043; border-bottom: 2px solid #4b6043; padding-bottom: 8px; }
+            h2 { color: #4b6043; margin-top: 24px; font-size: 14px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+            th { background: #4b6043; color: white; padding: 6px 8px; text-align: left; font-size: 11px; }
+            td { padding: 5px 8px; border-bottom: 1px solid #ddd; font-size: 11px; }
+            .kpi { display: inline-block; padding: 10px 20px; border: 1px solid #4b6043; border-radius: 8px; margin: 5px; text-align: center; }
+            .kpi-val { font-size: 18px; font-weight: bold; color: #4b6043; }
+            .positive { color: #388e3c; }
+            .negative { color: #c94c4c; }
+        </style>
+        </head><body>
+        <h1>🌿 Cuaderno de Campo — Informe</h1>
+        <p>Generado el: <strong>${today}</strong> &nbsp;|&nbsp; Luna: ${moon.emoji} ${moon.name} (${moon.illumination}%)</p>
+
+        <h2>💰 Resumen Económico</h2>
+        <div>
+            <div class="kpi"><div>Gastos</div><div class="kpi-val negative">${totalExpenses.toFixed(2)} €</div></div>
+            <div class="kpi"><div>Ingresos</div><div class="kpi-val positive">${totalIncome.toFixed(2)} €</div></div>
+            <div class="kpi"><div>Balance</div><div class="kpi-val ${balance >= 0 ? 'positive' : 'negative'}">${balance.toFixed(2)} €</div></div>
+        </div>
+
+        <h2>📦 Almacén</h2>
+        <table>
+            <tr><th>Producto</th><th>Tipo</th><th>Stock</th><th>Precio</th><th>Composición</th></tr>
+            ${almacenRows || '<tr><td colspan="5">Sin productos</td></tr>'}
+        </table>
+
+        <h2>📓 Últimas 20 anotaciones del Diario</h2>
+        <table>
+            <tr><th>Fecha</th><th>Anotación</th></tr>
+            ${diarioRows || '<tr><td colspan="2">Sin anotaciones</td></tr>'}
+        </table>
+        </body></html>
+    `;
+
+    const printWin = window.open('', '_blank', 'width=900,height=700');
+    if (printWin) {
+        printWin.document.write(printContent);
+        printWin.document.close();
+        printWin.focus();
+        setTimeout(() => { printWin.print(); }, 500);
+    } else {
+        showToast('Activa las ventanas emergentes para exportar el PDF', 'error');
+    }
+}
+
 // --- INITIALIZE ON LOAD ---
+
 window.addEventListener('DOMContentLoaded', () => {
     loadState();
     if (state.weatherLocation) {
@@ -2494,7 +3232,5 @@ window.addEventListener('DOMContentLoaded', () => {
     fetchWeather();
     switchView(state.currentView);
     toggleCultivoTab(state.currentCultivoTab);
-    
-    // Background sync and IndexedDB backup
     initSyncAndIndexedDB();
 });
