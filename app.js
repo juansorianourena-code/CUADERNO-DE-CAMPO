@@ -48,13 +48,30 @@ const MOCK_PHOTOS = {
     }
 };
 
-// Weather state simulated
+// --- CALENDAR STATE ---
+const now = new Date();
+let calendarYear = now.getFullYear();
+let calendarMonth = now.getMonth(); // 0-indexed
+let selectedCalendarDay = null;
+let selectedCalendarDateString = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+})();
+
+
+// Weather state (integrated with Open-Meteo)
 let weatherState = {
     temp: 24,
-    status: "Soleado y despejado",
-    wind: 6,
-    humidity: 42,
-    safeToSpray: true
+    status: "Despejado",
+    wind: 5,
+    humidity: 40,
+    safeToSpray: true,
+    location: "albacete"
+};
+
+const WEATHER_COORDINATES = {
+    albacete: { lat: 38.9942, lon: -1.8564, name: "Albacete" },
+    fuensanta: { lat: 39.2435, lon: -2.0631, name: "Fuensanta (Albacete)" }
 };
 
 // Seed initial data if localStorage is empty
@@ -93,6 +110,12 @@ function seedInitialData() {
             });
         }
     });
+    
+    state.weatherLocation = 'albacete';
+    state.croquisDimensions = {
+        "huerto-general": { rows: 4, cols: 4 },
+        "olivar-general": { rows: 4, cols: 4 }
+    };
 }
 
 // --- INDEXEDDB HELPER FOR BACKUP & FILE HANDLE ---
@@ -696,6 +719,8 @@ function loadState() {
             
             if (!state.croquis) state.croquis = {};
             if (!state.diario) state.diario = [];
+            if (!state.weatherLocation) state.weatherLocation = 'albacete';
+            if (!state.croquisDimensions) state.croquisDimensions = {};
         } catch (e) {
             console.error("Error al parsear datos de localstorage, reseteando...", e);
             seedInitialData();
@@ -733,26 +758,44 @@ function switchView(viewName) {
     else if (viewName === 'croquis') renderCroquis();
     else if (viewName === 'diario') renderDiario();
     else if (viewName === 'economia') renderEconomia();
+    else if (viewName === 'calendario') renderCalendar();
 }
 
-// --- WEATHER SIMULATOR ---
+// --- WEATHER INTEGRATION (Open-Meteo) ---
 function renderWeather() {
-    document.getElementById('weather-temp').innerText = `${weatherState.temp}°C`;
+    const tempEl = document.getElementById('weather-temp');
+    if (!tempEl) return;
+    
+    tempEl.innerText = `${weatherState.temp}°C`;
     document.getElementById('weather-status').innerText = weatherState.status;
     document.getElementById('weather-wind').innerText = `Viento: ${weatherState.wind} km/h`;
     document.getElementById('weather-humidity').innerText = `Humedad: ${weatherState.humidity}%`;
+    
+    // Sincronizar el selector en la interfaz
+    const select = document.getElementById('weather-location-select');
+    if (select) {
+        select.value = weatherState.location || 'albacete';
+    }
     
     const adviceEl = document.getElementById('weather-advice');
     const iconEl = document.getElementById('weather-icon');
 
     if (weatherState.safeToSpray) {
         adviceEl.innerHTML = `<i class="ph-fill ph-check-circle"></i> Condiciones óptimas para sulfatar`;
-        adviceEl.className = "weather-advice"; // standard green-ish
+        adviceEl.className = "weather-advice";
         adviceEl.style.color = "var(--success)";
         iconEl.className = "ph-fill ph-sun weather-icon-lg";
         iconEl.style.color = "var(--secondary)";
     } else {
-        adviceEl.innerHTML = `<i class="ph-fill ph-warning-circle"></i> Evitar sulfatar: ${weatherState.status.toLowerCase()}`;
+        let reason = "clima adverso";
+        if (weatherState.temp >= 30) {
+            reason = `temp. excesiva (${weatherState.temp}°C)`;
+        } else if (weatherState.wind >= 15) {
+            reason = `viento fuerte (${weatherState.wind} km/h)`;
+        } else {
+            reason = weatherState.status.toLowerCase();
+        }
+        adviceEl.innerHTML = `<i class="ph-fill ph-warning-circle"></i> Evitar sulfatar: ${reason}`;
         adviceEl.className = "weather-advice";
         adviceEl.style.color = "var(--danger)";
         iconEl.className = "ph-fill ph-cloud-rain weather-icon-lg";
@@ -760,34 +803,77 @@ function renderWeather() {
     }
 }
 
-function syncData() {
-    showToast("Sincronizando previsión del tiempo...", "info");
+async function fetchWeather() {
+    const loc = weatherState.location || 'albacete';
+    const coords = WEATHER_COORDINATES[loc];
+    if (!coords) return;
     
-    setTimeout(() => {
-        // Randomize weather parameters
-        const tempChance = Math.random();
-        if (tempChance < 0.3) {
-            weatherState.temp = Math.floor(Math.random() * 10) + 12; // 12-21
-            weatherState.status = "Lluvia débil y viento racheado";
-            weatherState.wind = Math.floor(Math.random() * 15) + 20; // 20-35
-            weatherState.humidity = Math.floor(Math.random() * 20) + 75; // 75-95
-            weatherState.safeToSpray = false;
-        } else if (tempChance < 0.6) {
-            weatherState.temp = Math.floor(Math.random() * 8) + 22; // 22-29
-            weatherState.status = "Viento fuerte del este";
-            weatherState.wind = Math.floor(Math.random() * 10) + 18; // 18-27
-            weatherState.humidity = Math.floor(Math.random() * 15) + 30; // 30-45
-            weatherState.safeToSpray = false;
-        } else {
-            weatherState.temp = Math.floor(Math.random() * 10) + 20; // 20-30
-            weatherState.status = "Despejado y calmado";
-            weatherState.wind = Math.floor(Math.random() * 6) + 3; // 3-8
-            weatherState.humidity = Math.floor(Math.random() * 20) + 40; // 40-60
-            weatherState.safeToSpray = true;
-        }
+    try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m`);
+        if (!res.ok) throw new Error("API response error");
+        
+        const data = await res.json();
+        const current = data.current;
+        
+        const wmoCodes = {
+            0: "Despejado",
+            1: "Casi despejado",
+            2: "Parcialmente nublado",
+            3: "Nublado",
+            45: "Niebla",
+            48: "Niebla de escarcha",
+            51: "Llovizna ligera",
+            53: "Llovizna moderada",
+            55: "Llovizna densa",
+            61: "Lluvia débil",
+            63: "Lluvia moderada",
+            65: "Lluvia fuerte",
+            71: "Nevada ligera",
+            73: "Nevada moderada",
+            75: "Nevada fuerte",
+            80: "Chubascos débiles",
+            81: "Chubascos moderados",
+            82: "Chubascos fuertes",
+            95: "Tormenta"
+        };
+        
+        const code = current.weather_code;
+        weatherState.temp = Math.round(current.temperature_2m);
+        weatherState.status = wmoCodes[code] || "Variable";
+        weatherState.wind = Math.round(current.wind_speed_10m);
+        weatherState.humidity = current.relative_humidity_2m;
+        
+        // Recomendación segura: Viento < 15 km/h, sin precipitación activa (WMO < 50) y temp < 30°C
+        weatherState.safeToSpray = (code < 50 && weatherState.wind < 15 && weatherState.temp < 30);
+        
         renderWeather();
-        showToast("Tiempo local actualizado con éxito", "success");
-    }, 800);
+    } catch (err) {
+        console.warn("Fallo al conectar con Open-Meteo. Usando estimación simulada.", err);
+        // Fallback simulation based on selected location
+        const randomTemp = loc === 'albacete' ? 22 : 20;
+        weatherState.temp = Math.floor(Math.random() * 8) + randomTemp;
+        weatherState.status = Math.random() > 0.5 ? "Despejado y templado" : "Parcialmente nublado";
+        weatherState.wind = Math.floor(Math.random() * 12) + 4;
+        weatherState.humidity = Math.floor(Math.random() * 20) + 40;
+        weatherState.safeToSpray = (weatherState.wind < 15 && weatherState.temp < 30);
+        renderWeather();
+    }
+}
+
+function changeWeatherLocation() {
+    const select = document.getElementById('weather-location-select');
+    if (!select) return;
+    weatherState.location = select.value;
+    state.weatherLocation = select.value;
+    saveState(true, true);
+    fetchWeather();
+}
+
+function syncData() {
+    showToast("Sincronizando el tiempo real...", "info");
+    fetchWeather().then(() => {
+        showToast("El tiempo local se ha actualizado con éxito", "success");
+    });
 }
 
 // --- ALMACÉN LOGIC ---
@@ -895,20 +981,32 @@ function toggleCultivoTab(tab) {
     
     const hBtn = document.getElementById('tab-huerto-btn');
     const oBtn = document.getElementById('tab-olivar-btn');
+    const sBtn = document.getElementById('tab-stats-btn');
+    
     const hView = document.getElementById('subview-huerto');
     const oView = document.getElementById('subview-olivar');
+    const sView = document.getElementById('subview-stats');
+
+    if (hBtn) hBtn.classList.remove('active');
+    if (oBtn) oBtn.classList.remove('active');
+    if (sBtn) sBtn.classList.remove('active');
+    
+    if (hView) hView.classList.add('hidden');
+    if (oView) oView.classList.add('hidden');
+    if (sView) sView.classList.add('hidden');
 
     if (tab === 'huerto') {
-        hBtn.classList.add('active');
-        oBtn.classList.remove('active');
-        hView.classList.remove('hidden');
-        oView.classList.add('hidden');
-    } else {
-        hBtn.classList.remove('active');
-        oBtn.classList.add('active');
-        hView.classList.add('hidden');
-        oView.classList.remove('hidden');
+        if (hBtn) hBtn.classList.add('active');
+        if (hView) hView.classList.remove('hidden');
+    } else if (tab === 'olivar') {
+        if (oBtn) oBtn.classList.add('active');
+        if (oView) oView.classList.remove('hidden');
+    } else if (tab === 'stats') {
+        if (sBtn) sBtn.classList.add('active');
+        if (sView) sView.classList.remove('hidden');
     }
+    
+    saveState(false, false);
     renderCampo();
 }
 
@@ -916,9 +1014,82 @@ function renderCampo() {
     populateParcelDropdowns();
     if (state.currentCultivoTab === 'huerto') {
         renderHuerto();
-    } else {
+    } else if (state.currentCultivoTab === 'olivar') {
         renderOlivar();
+    } else {
+        renderStats();
     }
+}
+
+function renderStats() {
+    const listEl = document.getElementById('stats-ranking-list');
+    if (!listEl) return;
+    
+    // Agrupar producción total por producto
+    const totals = {}; // { 'Tomates': { value: X, unit: 'uds' } }
+    
+    // 1. Huerto
+    const huertoCosechas = state.huerto.cosechas || [];
+    huertoCosechas.forEach(c => {
+        const prod = c.product || "Cultivo Desconocido";
+        if (!totals[prod]) {
+            totals[prod] = { value: 0, unit: "uds" };
+        }
+        totals[prod].value += parseFloat(c.count) || 0;
+    });
+    
+    // 2. Olivar (cosechas de aceituna)
+    const olivarCosechas = state.olivar.cosechas || [];
+    olivarCosechas.forEach(c => {
+        const prod = "Aceitunas";
+        if (!totals[prod]) {
+            totals[prod] = { value: 0, unit: "Kg" };
+        }
+        totals[prod].value += parseFloat(c.kg) || 0;
+    });
+    
+    // Ordenar de mayor a menor producción
+    const sorted = Object.entries(totals)
+        .map(([name, data]) => ({ name, value: data.value, unit: data.unit }))
+        .sort((a, b) => b.value - a.value);
+        
+    if (sorted.length === 0) {
+        listEl.innerHTML = `
+            <div style="text-align: center; padding: 25px 10px; color: var(--text-muted); font-size: 0.85rem;">
+                <i class="ph ph-trend-up" style="font-size: 2.2rem; display: block; margin-bottom: 8px; opacity: 0.5;"></i>
+                No hay cosechas registradas. Los cultivos que coseches aparecerán aquí ordenados por rendimiento.
+            </div>
+        `;
+        return;
+    }
+    
+    const maxVal = Math.max(...sorted.map(item => item.value), 1);
+    
+    let html = '';
+    sorted.forEach((item, index) => {
+        const pct = Math.round((item.value / maxVal) * 100);
+        let badge = `<span style="font-size:0.75rem; font-weight:700; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border-radius: 50%; color: var(--text-muted);">${index + 1}</span>`;
+        if (index === 0) badge = `<span style="font-size:1.1rem; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;">🏆</span>`;
+        else if (index === 1) badge = `<span style="font-size:1.1rem; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;">🥈</span>`;
+        else if (index === 2) badge = `<span style="font-size:1.1rem; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;">🥉</span>`;
+        
+        html += `
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        ${badge}
+                        <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary);">${escapeHTML(item.name)}</span>
+                    </div>
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-light);">${item.value.toLocaleString()} ${item.unit}</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.03);">
+                    <div style="width: ${pct}%; height: 100%; background: linear-gradient(90deg, var(--primary-light), var(--primary)); border-radius: 4px; transition: width 0.5s ease;"></div>
+                </div>
+            </div>
+        `;
+    });
+    
+    listEl.innerHTML = html;
 }
 
 function populateParcelDropdowns() {
@@ -1097,6 +1268,7 @@ function renderHuerto() {
     renderPlantings(pId);
     renderTreatments('huerto', pId);
     checkSafetyPeriod('huerto', pId);
+    renderHarvestCounters();
 }
 
 // --- OLIVAR SUB-LOGIC ---
@@ -1259,8 +1431,48 @@ function openApplyTreatmentModal(type) {
         select.appendChild(opt);
     });
 
+    // Hide terrain selector since we are in Huerto/Olivar tab
+    const typeGroup = document.getElementById('treatment-type-group');
+    if (typeGroup) typeGroup.style.display = 'none';
+
     document.getElementById('treatment-type').value = type;
     document.getElementById('treatment-date').value = getTodayString();
+    document.getElementById('treatment-amount').value = 1;
+    document.getElementById('treatment-safety-days').value = 0;
+    
+    openModal('modal-apply-treatment');
+}
+
+function openCalendarScheduleModal() {
+    const select = document.getElementById('treatment-product');
+    if (!select) return;
+    select.innerHTML = '';
+    
+    const availableProducts = state.almacen.filter(p => p.stock > 0);
+
+    if (availableProducts.length === 0) {
+        showToast("No hay productos con stock en el almacén para aplicar", "error");
+        return;
+    }
+
+    availableProducts.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.innerText = `${p.name} (Stock: ${p.stock.toFixed(1)})`;
+        select.appendChild(opt);
+    });
+
+    // Show terrain selector since we are in Calendar tab
+    const typeGroup = document.getElementById('treatment-type-group');
+    if (typeGroup) typeGroup.style.display = 'block';
+
+    const typeSelect = document.getElementById('treatment-type-select');
+    if (typeSelect) {
+        typeSelect.value = 'huerto';
+        document.getElementById('treatment-type').value = 'huerto';
+    }
+
+    document.getElementById('treatment-date').value = selectedCalendarDateString;
     document.getElementById('treatment-amount').value = 1;
     document.getElementById('treatment-safety-days').value = 0;
     
@@ -1316,6 +1528,7 @@ function applyTreatment(e) {
     saveState();
     closeModal('modal-apply-treatment');
     renderCampo();
+    if (state.currentView === 'calendario') renderCalendar();
     showToast("Tratamiento registrado y stock descontado", "success");
 }
 
@@ -1357,43 +1570,170 @@ function checkSafetyPeriod(type, parcelId) {
 }
 
 // --- HARVEST CONTROLLER FOR HUERTO ---
-let tempHarvestCount = 0;
-function adjustHarvestCounter(val) {
-    tempHarvestCount = Math.max(0, tempHarvestCount + val);
-    document.getElementById('huerto-harvest-val').innerText = tempHarvestCount;
+// --- DYNAMIC HARVEST COUNTERS ---
+function renderHarvestCounters() {
+    const container = document.getElementById('huerto-harvest-container');
+    if (!container) return;
+
+    const pId = state.currentHuertoParcela;
+    
+    // Inicializar estructuras de datos si no existen
+    if (!state.huerto.customCosechas) state.huerto.customCosechas = {};
+    if (!state.huerto.customCosechas[pId]) state.huerto.customCosechas[pId] = [];
+    if (!state.tempHarvestCounts) state.tempHarvestCounts = {};
+
+    // Obtener nombres de plantaciones activas en esta parcela
+    const plantings = (state.huerto.plantaciones[pId] || []).map(p => p.name);
+    const customItems = state.huerto.customCosechas[pId];
+    
+    // Combinar sin duplicados
+    const allProducts = Array.from(new Set([...plantings, ...customItems]));
+
+    let html = `
+        <span class="card-title"><i class="ph ph-tomato"></i> Contador de Cosecha</span>
+        <p class="card-subtitle">Registra la cosecha diaria acumulando unidades de cada cultivo.</p>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 12px;">
+    `;
+
+    if (allProducts.length === 0) {
+        html += `
+            <div style="text-align: center; padding: 15px; color: var(--text-muted); font-size: 0.8rem; background: rgba(255,255,255,0.01); border: 1px dashed var(--border-color); border-radius: 8px;">
+                No hay cultivos en esta parcela. Escribe una variedad abajo para añadir su contador.
+            </div>
+        `;
+    } else {
+        allProducts.forEach(prod => {
+            const currentCount = state.tempHarvestCounts[prod] || 0;
+            const isCustom = customItems.includes(prod);
+            
+            html += `
+                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary);">${escapeHTML(prod)}</span>
+                        ${isCustom ? `
+                            <button class="close-sheet" style="font-size: 0.9rem; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 0; line-height: 1;" onclick="removeCustomHarvestProduct('${escapeHTML(prod)}')">
+                                <i class="ph ph-x-circle" style="font-size: 1.1rem;"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <button class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.75rem; border-radius: 8px; width: auto;" onclick="adjustProductCounter('${escapeHTML(prod)}', -1)">-1</button>
+                            <div style="min-width: 32px; text-align: center; font-size: 1.1rem; font-weight: 700; color: var(--primary-light);" id="counter-val-${prod}">${currentCount}</div>
+                            <button class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.75rem; border-radius: 8px; width: auto;" onclick="adjustProductCounter('${escapeHTML(prod)}', 1)">+1</button>
+                            <button class="btn btn-secondary" style="padding: 6px 8px; font-size: 0.75rem; border-radius: 8px; width: auto;" onclick="adjustProductCounter('${escapeHTML(prod)}', 5)">+5</button>
+                        </div>
+                        <button class="btn" style="padding: 6px 10px; font-size: 0.75rem; border-radius: 8px; width: auto; font-weight: 700;" onclick="saveProductHarvest('${escapeHTML(prod)}')">
+                            <i class="ph ph-floppy-disk"></i> Registrar
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    html += `
+        </div>
+        
+        <!-- Formulario para añadir cultivos/variedades al vuelo -->
+        <div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 12px;">
+            <label class="input-label" style="font-size: 0.7rem; margin-bottom: 4px;">Añadir otra variedad/cosecha (ej: Boniato)</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="new-harvest-product-input" class="form-input" style="padding: 8px; font-size: 0.75rem; border-radius: 8px; margin: 0; flex: 1;" placeholder="Nombre de la planta...">
+                <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.75rem; border-radius: 8px; width: auto; font-weight: 700;" onclick="addCustomHarvestProduct()">
+                    <i class="ph ph-plus"></i> Añadir
+                </button>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = html;
 }
 
-function saveHuertoHarvest() {
-    if (tempHarvestCount === 0) {
-        showToast("Introduce un número mayor que 0", "error");
+function adjustProductCounter(prod, val) {
+    if (!state.tempHarvestCounts) state.tempHarvestCounts = {};
+    const current = state.tempHarvestCounts[prod] || 0;
+    state.tempHarvestCounts[prod] = Math.max(0, current + val);
+    
+    // Update local display immediately
+    const el = document.getElementById(`counter-val-${prod}`);
+    if (el) el.innerText = state.tempHarvestCounts[prod];
+    
+    // Save state (soft)
+    saveState(true, false);
+}
+
+function addCustomHarvestProduct() {
+    const input = document.getElementById('new-harvest-product-input');
+    if (!input) return;
+    
+    const val = input.value.trim();
+    if (!val) return;
+    
+    const pId = state.currentHuertoParcela;
+    if (!state.huerto.customCosechas) state.huerto.customCosechas = {};
+    if (!state.huerto.customCosechas[pId]) state.huerto.customCosechas[pId] = [];
+    
+    if (!state.huerto.customCosechas[pId].includes(val)) {
+        state.huerto.customCosechas[pId].push(val);
+        if (!state.tempHarvestCounts) state.tempHarvestCounts = {};
+        state.tempHarvestCounts[val] = 0;
+        
+        saveState();
+        renderHarvestCounters();
+        showToast(`Variedad '${val}' añadida a cosechas`, "success");
+    } else {
+        showToast("Este cultivo ya está en la lista", "warning");
+    }
+}
+
+function removeCustomHarvestProduct(prod) {
+    const pId = state.currentHuertoParcela;
+    if (state.huerto.customCosechas && state.huerto.customCosechas[pId]) {
+        state.huerto.customCosechas[pId] = state.huerto.customCosechas[pId].filter(x => x !== prod);
+    }
+    if (state.tempHarvestCounts) {
+        delete state.tempHarvestCounts[prod];
+    }
+    saveState();
+    renderHarvestCounters();
+    showToast("Variedad eliminada de la lista", "info");
+}
+
+function saveProductHarvest(prod) {
+    const count = state.tempHarvestCounts?.[prod] || 0;
+    if (count === 0) {
+        showToast("Introduce una cantidad mayor que 0", "error");
         return;
     }
-    const product = document.getElementById('huerto-harvest-product').value;
-    const parcelId = state.currentHuertoParcela;
+    
+    const pId = state.currentHuertoParcela;
     const dateStr = getTodayString();
-
+    
     const newHarvest = {
         id: Date.now(),
-        product: product,
-        count: tempHarvestCount,
+        product: prod,
+        count: count,
         date: dateStr,
-        parcela: parcelId
+        parcela: pId
     };
-
+    
+    if (!state.huerto.cosechas) state.huerto.cosechas = [];
     state.huerto.cosechas.push(newHarvest);
-
+    
     // Auto log to journal
     state.diario.push({
         id: Date.now() + 1,
-        text: `Cosechado en ${state.huerto.parcelas[parcelId]}: ${tempHarvestCount} uds de ${product}.`,
+        text: `Cosechado en ${state.huerto.parcelas[pId]}: ${count} uds de ${prod}.`,
         date: `${dateStr} ${getNowTimeString()}`,
         photo: MOCK_PHOTOS.cosecha.url
     });
-
-    tempHarvestCount = 0;
-    document.getElementById('huerto-harvest-val').innerText = 0;
+    
+    // Reset counter
+    state.tempHarvestCounts[prod] = 0;
     
     saveState();
+    renderHarvestCounters();
     showToast("Cosecha registrada en el diario", "success");
 }
 
@@ -1485,9 +1825,11 @@ function renderOlivarHarvestHistory() {
 }
 
 // --- CROQUIS INTERACTIVO ---
+// --- CROQUIS INTERACTIVO ---
 function renderCroquis() {
     // Populate select
     const select = document.getElementById('croquis-parcela-select');
+    if (!select) return;
     select.innerHTML = '';
 
     // Join parcels from Huerto and Olivar
@@ -1512,23 +1854,60 @@ function renderCroquis() {
 
     // Draw Grid
     const parcelId = select.value;
+    if (!parcelId) return;
+    
     state.currentCroquisParcela = parcelId;
     
-    // Ensure grid exists
+    // Load or initialize croquis dimensions
+    if (!state.croquisDimensions) state.croquisDimensions = {};
+    if (!state.croquisDimensions[parcelId]) {
+        state.croquisDimensions[parcelId] = { rows: 4, cols: 4 };
+    }
+    const dims = state.croquisDimensions[parcelId];
+
+    // Set values in inputs
+    const rowsInput = document.getElementById('croquis-rows-input');
+    const colsInput = document.getElementById('croquis-cols-input');
+    if (rowsInput) rowsInput.value = dims.rows;
+    if (colsInput) colsInput.value = dims.cols;
+
+    // Ensure grid cells match the configuration rows * cols
+    const targetCellCount = dims.rows * dims.cols;
     if (!state.croquis[parcelId]) {
         state.croquis[parcelId] = [];
-        const isOlivar = parcelId.startsWith("olivar");
-        for (let i = 1; i <= 16; i++) {
-            state.croquis[parcelId].push({
-                id: i,
-                label: isOlivar ? `Olivo ${i}` : `Zona ${i}`,
-                state: "normal"
-            });
+    }
+    
+    const isOlivar = parcelId.startsWith("olivar");
+    const currentCells = state.croquis[parcelId];
+    
+    // Safe adjustment preserving existing states
+    if (currentCells.length !== targetCellCount) {
+        const newCells = [];
+        for (let i = 1; i <= targetCellCount; i++) {
+            const existing = currentCells[i - 1];
+            if (existing) {
+                newCells.push({
+                    id: i,
+                    label: isOlivar ? `Olivo ${i}` : `Zona ${i}`,
+                    state: existing.state
+                });
+            } else {
+                newCells.push({
+                    id: i,
+                    label: isOlivar ? `Olivo ${i}` : `Zona ${i}`,
+                    state: "normal"
+                });
+            }
         }
+        state.croquis[parcelId] = newCells;
     }
 
     const gridEl = document.getElementById('croquis-grid');
+    if (!gridEl) return;
     gridEl.innerHTML = '';
+    
+    // Apply dynamic column template
+    gridEl.style.gridTemplateColumns = `repeat(${dims.cols}, 1fr)`;
 
     state.croquis[parcelId].forEach(cell => {
         const cellEl = document.createElement('div');
@@ -1556,10 +1935,38 @@ function renderCroquis() {
     });
 }
 
+function adjustCroquisGridSize() {
+    const parcelId = state.currentCroquisParcela;
+    if (!parcelId) return;
+
+    const rowsInput = document.getElementById('croquis-rows-input');
+    const colsInput = document.getElementById('croquis-cols-input');
+    if (!rowsInput || !colsInput) return;
+
+    const rows = parseInt(rowsInput.value) || 4;
+    const cols = parseInt(colsInput.value) || 4;
+
+    if (rows < 1 || cols < 1) {
+        showToast("Las filas y columnas deben ser mínimo 1", "error");
+        return;
+    }
+
+    if (rows > 25 || cols > 25) {
+        showToast("Máximo 25 filas o columnas para un correcto rendimiento", "error");
+        return;
+    }
+
+    if (!state.croquisDimensions) state.croquisDimensions = {};
+    state.croquisDimensions[parcelId] = { rows, cols };
+
+    saveState();
+    renderCroquis();
+    showToast(`Cuadrícula ajustada a ${rows}x${cols}`, "success");
+}
+
 function toggleCellState(parcelId, cellId) {
     const cell = state.croquis[parcelId].find(c => c.id === cellId);
     if (cell) {
-        // Toggle sequence: normal -> treated -> pending -> plaga -> normal
         const states = ["normal", "treated", "pending", "plaga"];
         const nextIdx = (states.indexOf(cell.state) + 1) % states.length;
         cell.state = states[nextIdx];
@@ -1904,12 +2311,173 @@ function updateUI() {
     else if (state.currentView === 'croquis') renderCroquis();
     else if (state.currentView === 'diario') renderDiario();
     else if (state.currentView === 'economia') renderEconomia();
+    else if (state.currentView === 'calendario') renderCalendar();
+}
+
+// --- CALENDARIO DE TRATAMIENTOS ---
+function getAllTreatments() {
+    const all = [];
+    // Huerto treatments
+    Object.entries(state.huerto.tratamientos || {}).forEach(([parcelId, list]) => {
+        (list || []).forEach(t => {
+            all.push({ ...t, source: 'huerto', parcelName: state.huerto.parcelas[parcelId] || parcelId });
+        });
+    });
+    // Olivar treatments
+    Object.entries(state.olivar.tratamientos || {}).forEach(([parcelId, list]) => {
+        (list || []).forEach(t => {
+            all.push({ ...t, source: 'olivar', parcelName: state.olivar.parcelas[parcelId] || parcelId });
+        });
+    });
+    return all;
+}
+
+function renderCalendar() {
+    const container = document.getElementById('calendar-container');
+    const monthYearEl = document.getElementById('calendar-month-year');
+    if (!container || !monthYearEl) return;
+
+    const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    monthYearEl.textContent = `${monthNames[calendarMonth]} ${calendarYear}`;
+
+    // Get all treatments indexed by date string
+    const allTreatments = getAllTreatments();
+    const byDate = {};
+    allTreatments.forEach(t => {
+        const d = t.date;
+        if (!byDate[d]) byDate[d] = [];
+        byDate[d].push(t);
+    });
+
+    // Build calendar
+    const firstDay = new Date(calendarYear, calendarMonth, 1);
+    const lastDay = new Date(calendarYear, calendarMonth + 1, 0);
+    const startDow = (firstDay.getDay() + 6) % 7; // Monday-first: 0=Mon
+    const totalDays = lastDay.getDate();
+    const todayStr = getTodayString();
+
+    let html = `<div class="calendar-weekdays">`;
+    ['L','M','X','J','V','S','D'].forEach(d => { html += `<div>${d}</div>`; });
+    html += `</div><div class="calendar-days-grid">`;
+
+    // Empty cells before first day
+    for (let i = 0; i < startDow; i++) {
+        html += `<div class="calendar-day-cell other-month"></div>`;
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+        const mm = String(calendarMonth + 1).padStart(2, '0');
+        const dd = String(day).padStart(2, '0');
+        const dateStr = `${calendarYear}-${mm}-${dd}`;
+        const treatments = byDate[dateStr] || [];
+        const isToday = (dateStr === todayStr);
+        const isSelected = (dateStr === selectedCalendarDateString);
+
+        const hasHuerto = treatments.some(t => t.source === 'huerto');
+        const hasOlivar = treatments.some(t => t.source === 'olivar');
+
+        let classes = 'calendar-day-cell';
+        if (isToday) classes += ' today';
+        if (isSelected) classes += ' selected';
+
+        let dots = '';
+        if (hasHuerto || hasOlivar) {
+            dots = `<div class="calendar-dots-container">`;
+            if (hasHuerto) dots += `<div class="calendar-dot huerto"></div>`;
+            if (hasOlivar) dots += `<div class="calendar-dot olivar"></div>`;
+            dots += `</div>`;
+        }
+
+        html += `<div class="${classes}" onclick="selectCalendarDay('${dateStr}')">${day}${dots}</div>`;
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+
+    // Update day detail panel
+    renderCalendarDayDetail(selectedCalendarDateString);
+}
+
+function selectCalendarDay(dateStr) {
+    selectedCalendarDateString = dateStr;
+    selectedCalendarDay = dateStr;
+    renderCalendar();
+}
+
+function renderCalendarDayDetail(dateStr) {
+    const listEl = document.getElementById('calendar-day-treatments-list');
+    const titleEl = document.getElementById('calendar-selected-day-title');
+    if (!listEl || !titleEl) return;
+
+    const allTreatments = getAllTreatments();
+    const dayTreatments = allTreatments.filter(t => t.date === dateStr);
+    const todayStr = getTodayString();
+
+    // Format date for display
+    if (dateStr) {
+        const [y, m, d] = dateStr.split('-');
+        const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        titleEl.innerHTML = `<i class="ph ph-list-bullets"></i> ${parseInt(d)} de ${monthNames[parseInt(m)-1]} de ${y}`;
+    }
+
+    if (dayTreatments.length === 0) {
+        const isPast = dateStr < todayStr;
+        const msg = isPast
+            ? 'Sin tratamientos registrados este día.'
+            : 'Sin tratamientos programados para este día. Pulsa <strong>+ Programar</strong> para añadir uno.';
+        listEl.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); padding: 8px 0;">${msg}</p>`;
+        return;
+    }
+
+    let html = '';
+    dayTreatments.forEach(t => {
+        const isHuerto = t.source === 'huerto';
+        const dotColor = isHuerto ? '#eab308' : '#22c55e';
+        const label = isHuerto ? 'Huerto' : 'Olivar';
+        const isFuture = dateStr > todayStr;
+        const statusBadge = isFuture
+            ? `<span style="font-size: 0.65rem; font-weight: 700; background: rgba(76,201,240,0.15); color: var(--primary-light); border-radius: 4px; padding: 2px 6px;">PROGRAMADO</span>`
+            : `<span style="font-size: 0.65rem; font-weight: 700; background: rgba(34,197,94,0.15); color: #22c55e; border-radius: 4px; padding: 2px 6px;">APLICADO</span>`;
+
+        html += `
+            <div style="display: flex; align-items: flex-start; gap: 10px; padding: 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 8px;">
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: ${dotColor}; margin-top: 4px; flex-shrink: 0;"></div>
+                <div style="flex: 1;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary);">${escapeHTML(t.productName)}</span>
+                        ${statusBadge}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
+                        <span>${label} &mdash; ${escapeHTML(t.parcelName)}</span><br>
+                        <span>Dosis: ${escapeHTML(t.dose || '-')}</span>
+                        ${t.safetyDays > 0 ? `<br><span>Plazo de seguridad: ${t.safetyDays} días (hasta ${t.expiresAt})</span>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    listEl.innerHTML = html;
+}
+
+function prevMonth() {
+    calendarMonth--;
+    if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+    renderCalendar();
+}
+
+function nextMonth() {
+    calendarMonth++;
+    if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+    renderCalendar();
 }
 
 // --- INITIALIZE ON LOAD ---
 window.addEventListener('DOMContentLoaded', () => {
     loadState();
-    renderWeather();
+    if (state.weatherLocation) {
+        weatherState.location = state.weatherLocation;
+    }
+    fetchWeather();
     switchView(state.currentView);
     toggleCultivoTab(state.currentCultivoTab);
     

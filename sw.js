@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cuaderno-campo-v2';
+const CACHE_NAME = 'cuaderno-campo-v9';
 const ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const ASSETS = [
   './app.js',
   './manifest.json',
   './icon.png',
+  './icon-512.png',
   './phosphor-regular.css',
   './phosphor-fill.css',
   './Phosphor.woff2',

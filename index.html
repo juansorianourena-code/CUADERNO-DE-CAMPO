@@ -52,18 +52,29 @@
             <!-- VIEW: ALMACÉN (Inventario) -->
             <section id="view-almacen" class="view-content">
                 <!-- Weather Widget -->
-                <div class="weather-widget" id="weather-widget">
-                    <div class="weather-info">
-                        <span class="weather-temp" id="weather-temp">24°C</span>
-                        <span class="weather-status" id="weather-status">Despejado, sin viento</span>
-                        <span class="weather-advice" id="weather-advice">
-                            <i class="ph-fill ph-check-circle"></i> Condiciones óptimas para sulfatar
+                <div class="weather-widget" id="weather-widget" style="flex-direction: column; align-items: stretch; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(75, 96, 67, 0.1); padding-bottom: 6px; margin-bottom: 2px;">
+                        <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                            <i class="ph-fill ph-cloud-sun" style="font-size: 1.1rem;"></i> Previsión Local
                         </span>
+                        <select id="weather-location-select" onchange="changeWeatherLocation()" style="background: rgba(255,255,255,0.7); border: 1px solid rgba(75, 96, 67, 0.15); border-radius: 8px; font-size: 0.75rem; padding: 4px 8px; color: var(--text-primary); font-weight: 700; outline: none; cursor: pointer;">
+                            <option value="albacete">Albacete</option>
+                            <option value="fuensanta">Fuensanta (Albacete)</option>
+                        </select>
                     </div>
-                    <div class="weather-details">
-                        <i class="ph-fill ph-sun weather-icon-lg" id="weather-icon"></i>
-                        <span id="weather-wind">Viento: 5 km/h</span>
-                        <span id="weather-humidity">Humedad: 40%</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div class="weather-info">
+                            <span class="weather-temp" id="weather-temp">24°C</span>
+                            <span class="weather-status" id="weather-status">Despejado, sin viento</span>
+                            <span class="weather-advice" id="weather-advice">
+                                <i class="ph-fill ph-check-circle"></i> Condiciones óptimas para sulfatar
+                            </span>
+                        </div>
+                        <div class="weather-details">
+                            <i class="ph-fill ph-sun weather-icon-lg" id="weather-icon"></i>
+                            <span id="weather-wind">Viento: 5 km/h</span>
+                            <span id="weather-humidity">Humedad: 40%</span>
+                        </div>
                     </div>
                 </div>
 
@@ -86,6 +97,7 @@
                 <div class="tab-selector">
                     <button class="tab-btn active" id="tab-huerto-btn" onclick="toggleCultivoTab('huerto')">HUERTO</button>
                     <button class="tab-btn" id="tab-olivar-btn" onclick="toggleCultivoTab('olivar')">OLIVAR</button>
+                    <button class="tab-btn" id="tab-stats-btn" onclick="toggleCultivoTab('stats')"><i class="ph ph-chart-bar" style="vertical-align: middle; margin-right: 4px;"></i>ESTADÍSTICAS</button>
                 </div>
 
                 <!-- HUERTO SUB-VIEW -->
@@ -129,30 +141,9 @@
                         </div>
                     </div>
 
-                    <!-- Contador Rápido de Cosecha -->
-                    <div class="card">
-                        <span class="card-title"><i class="ph ph-tomato"></i> Contador de Cosecha</span>
-                        <div class="input-group" style="margin-bottom: 10px;">
-                            <select id="huerto-harvest-product" class="form-select">
-                                <option value="Tomates">Tomates</option>
-                                <option value="Pimientos">Pimientos</option>
-                                <option value="Berenjenas">Berenjenas</option>
-                                <option value="Calabacines">Calabacines</option>
-                                <option value="Lechugas">Lechugas</option>
-                            </select>
-                        </div>
-                        <div class="harvest-counter">
-                            <button class="harvest-btn-large" style="background: rgba(255,255,255,0.06); color: var(--text-primary);" onclick="adjustHarvestCounter(-1)">-1</button>
-                            <div class="harvest-total">
-                                <div class="harvest-number" id="huerto-harvest-val">0</div>
-                                <div class="harvest-unit">Unidades cosechadas</div>
-                            </div>
-                            <button class="harvest-btn-large" onclick="adjustHarvestCounter(1)">+1</button>
-                        </div>
-                        <div style="display: flex; gap: 8px; margin-top: 10px;">
-                            <button class="btn btn-secondary" style="flex: 1; padding: 10px;" onclick="adjustHarvestCounter(5)">+5</button>
-                            <button class="btn" style="flex: 1.5; padding: 10px;" onclick="saveHuertoHarvest()"><i class="ph ph-floppy-disk"></i> Registrar al Diario</button>
-                        </div>
+                    <!-- Contadores Dinámicos de Cosecha -->
+                    <div class="card" id="huerto-harvest-container">
+                        <!-- Inyectado por JS -->
                     </div>
 
                     <!-- Historial de Tratamientos -->
@@ -234,6 +225,18 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- STATS SUB-VIEW -->
+                <div id="subview-stats" class="hidden">
+                    <div class="card">
+                        <span class="card-title"><i class="ph ph-chart-bar"></i> Rendimiento de Cultivos</span>
+                        <p class="card-subtitle">Ranking de plantas y variedades más productivas ordenadas por cantidad de producción.</p>
+                        
+                        <div id="stats-ranking-list" style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                            <!-- Inyectado por JS -->
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- VIEW: CROQUIS INTERACTIVO -->
@@ -242,11 +245,25 @@
                     <span class="card-title"><i class="ph ph-grid-four"></i> Croquis de Parcelas</span>
                     <p class="card-subtitle">Control táctil del estado del terreno por sectores o árboles.</p>
 
-                    <div class="input-group">
+                    <div class="input-group" style="margin-bottom: 12px;">
                         <label class="input-label" for="croquis-parcela-select">Selecciona Terreno</label>
                         <select id="croquis-parcela-select" class="form-select" onchange="renderCroquis()">
                             <!-- Inyectado por JS -->
                         </select>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; align-items: flex-end; margin-bottom: 15px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px;">
+                        <div style="flex: 1;">
+                            <label class="input-label" style="font-size: 0.7rem; margin-bottom: 4px;">Filas</label>
+                            <input type="number" id="croquis-rows-input" class="form-input" style="padding: 8px; font-size: 0.75rem; margin: 0;" min="1" max="20" value="4">
+                        </div>
+                        <div style="flex: 1;">
+                            <label class="input-label" style="font-size: 0.7rem; margin-bottom: 4px;">Columnas</label>
+                            <input type="number" id="croquis-cols-input" class="form-input" style="padding: 8px; font-size: 0.75rem; margin: 0;" min="1" max="20" value="4">
+                        </div>
+                        <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.75rem; border-radius: 8px; font-weight: 700; width: auto;" onclick="adjustCroquisGridSize()">
+                            <i class="ph ph-grid-four"></i> Ajustar
+                        </button>
                     </div>
 
                     <div class="croquis-grid" id="croquis-grid">
@@ -384,6 +401,54 @@
                 </div>
             </section>
 
+            <!-- VIEW: CALENDARIO DE TRATAMIENTOS -->
+            <section id="view-calendario" class="view-content hidden">
+                <div class="card" style="padding: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span class="card-title" style="margin: 0;"><i class="ph ph-calendar"></i> Calendario de Tratamientos</span>
+                        <button class="btn" style="width: auto; padding: 6px 12px; font-size: 0.75rem; border-radius: 8px;" onclick="openCalendarScheduleModal()">
+                            <i class="ph ph-plus"></i> Programar
+                        </button>
+                    </div>
+                    
+                    <!-- Month Selector -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px;">
+                        <button class="btn btn-secondary" style="width: auto; padding: 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin: 0;" onclick="prevMonth()">
+                            <i class="ph ph-caret-left" style="font-size: 1.1rem;"></i>
+                        </button>
+                        <span id="calendar-month-year" style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">Mayo 2026</span>
+                        <button class="btn btn-secondary" style="width: auto; padding: 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin: 0;" onclick="nextMonth()">
+                            <i class="ph ph-caret-right" style="font-size: 1.1rem;"></i>
+                        </button>
+                    </div>
+
+                    <!-- Color Legend -->
+                    <div style="display: flex; gap: 15px; justify-content: center; margin-bottom: 12px; font-size: 0.75rem; font-weight: 700;">
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <div style="width: 10px; height: 10px; border-radius: 50%; background: #eab308; border: 1px solid rgba(255,255,255,0.1);"></div>
+                            <span>Huerto (Amarillo)</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <div style="width: 10px; height: 10px; border-radius: 50%; background: #22c55e; border: 1px solid rgba(255,255,255,0.1);"></div>
+                            <span>Olivar (Verde)</span>
+                        </div>
+                    </div>
+
+                    <!-- Calendar Grid -->
+                    <div id="calendar-container">
+                        <!-- Inyectado dinámicamente por JS -->
+                    </div>
+                </div>
+
+                <!-- Day details card -->
+                <div class="card" id="calendar-day-details-card" style="margin-top: 15px; padding: 15px;">
+                    <span class="card-title" id="calendar-selected-day-title" style="font-size: 0.9rem; display: block; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 10px;"><i class="ph ph-list-bullets"></i> Tratamientos del Día</span>
+                    <div id="calendar-day-treatments-list">
+                        <!-- Lista de tratamientos inyectados -->
+                    </div>
+                </div>
+            </section>
+
         </div> <!-- End app-ui -->
 
         <!-- Bottom Tab Bar -->
@@ -407,6 +472,10 @@
             <button class="nav-item" onclick="switchView('diario')" id="nav-diario">
                 <i class="ph ph-book-open"></i>
                 <span>Diario</span>
+            </button>
+            <button class="nav-item" onclick="switchView('calendario')" id="nav-calendario">
+                <i class="ph ph-calendar"></i>
+                <span>Calendario</span>
             </button>
             <button class="nav-item" onclick="switchView('economia')" id="nav-economia">
                 <i class="ph ph-coins"></i>
@@ -470,6 +539,13 @@
                 </div>
                 <form onsubmit="applyTreatment(event)">
                     <input type="hidden" id="treatment-type"> <!-- 'huerto' o 'olivar' -->
+                    <div class="input-group" id="treatment-type-group" style="display: none; margin-bottom: 12px;">
+                        <label class="input-label" for="treatment-type-select">Tipo de Terreno</label>
+                        <select id="treatment-type-select" class="form-select" onchange="document.getElementById('treatment-type').value = this.value">
+                            <option value="huerto">Huerto</option>
+                            <option value="olivar">Olivar</option>
+                        </select>
+                    </div>
                     <div class="input-group">
                         <label class="input-label" for="treatment-product">Producto del Almacén</label>
                         <select id="treatment-product" class="form-select" required>
