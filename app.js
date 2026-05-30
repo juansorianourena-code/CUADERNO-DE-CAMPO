@@ -3234,3 +3234,21 @@ window.addEventListener('DOMContentLoaded', () => {
     toggleCultivoTab(state.currentCultivoTab);
     initSyncAndIndexedDB();
 });
+
+// ============================================================
+// --- RECARGAR APP (FORZAR CACHÉ) ---
+// ============================================================
+async function forceReloadApp() {
+    if ('serviceWorker' in navigator) {
+        try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let reg of registrations) {
+                await reg.unregister();
+            }
+        } catch (e) {
+            console.error('Error unregistering sw:', e);
+        }
+    }
+    // Añadimos un timestamp aleatorio para evitar caché de navegador
+    window.location.href = window.location.href.split('?')[0] + '?reload=' + new Date().getTime();
+}

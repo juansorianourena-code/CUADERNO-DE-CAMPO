@@ -35,9 +35,14 @@
                     <i class="ph ph-cloud-slash"></i>
                 </span>
             </div>
-            <button class="header-btn" onclick="syncData()" title="Sincronizar y Clima">
-                <i class="ph ph-cloud-sun" style="font-size: 1.3rem;"></i>
-            </button>
+            <div style="display: flex; gap: 8px;">
+                <button class="header-btn" onclick="forceReloadApp()" title="Forzar Recarga de App">
+                    <i class="ph ph-arrows-clockwise" style="font-size: 1.3rem;"></i>
+                </button>
+                <button class="header-btn" onclick="syncData()" title="Sincronizar y Clima">
+                    <i class="ph ph-cloud-sun" style="font-size: 1.3rem;"></i>
+                </button>
+            </div>
         </header>
 
         <!-- Main UI Wrapper -->
