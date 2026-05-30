@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cuaderno de Campo Digital</title>
+    
+    <!-- Google Fonts (Outfit) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;850&display=swap" rel="stylesheet">
+    
+    <!-- PWA Config -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#121612">
+    
+    <!-- Apple Web App Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CampoDigital">
+    <link rel="apple-touch-icon" href="./icon.png">
+
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header class="app-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <i class="ph-fill ph-leaf" style="font-size: 1.5rem; color: var(--primary);"></i>
+                <span class="header-title">Cuaderno de Campo</span>
+            </div>
+            <button class="header-btn" onclick="syncData()" title="Sincronizar y Clima">
+                <i class="ph ph-cloud-sun" style="font-size: 1.3rem;"></i>
+            </button>
+        </header>
+
+        <!-- Main UI Wrapper -->
+        <div class="app-ui">
+            
+            <!-- Toast notification -->
+            <div id="toast" class="toast">
+                <i class="ph-fill ph-info"></i>
+                <span id="toast-text">Mensaje de notificación</span>
+            </div>
+
+            <!-- VIEW: ALMACÉN (Inventario) -->
+            <section id="view-almacen" class="view-content">
+                <!-- Weather Widget -->
+                <div class="weather-widget" id="weather-widget">
+                    <div class="weather-info">
+                        <span class="weather-temp" id="weather-temp">24°C</span>
+                        <span class="weather-status" id="weather-status">Despejado, sin viento</span>
+                        <span class="weather-advice" id="weather-advice">
+                            <i class="ph-fill ph-check-circle"></i> Condiciones óptimas para sulfatar
+                        </span>
+                    </div>
+                    <div class="weather-details">
+                        <i class="ph-fill ph-sun weather-icon-lg" id="weather-icon"></i>
+                        <span id="weather-wind">Viento: 5 km/h</span>
+                        <span id="weather-humidity">Humedad: 40%</span>
+                    </div>
+                </div>
+
+                <div class="search-bar">
+                    <div class="input-group" style="flex: 1; margin: 0;">
+                        <input type="text" id="almacen-search" class="form-input" placeholder="Buscar producto..." oninput="renderAlmacen()">
+                    </div>
+                    <button class="btn" style="width: 48px; height: 48px; padding: 0; border-radius: var(--radius-sm);" onclick="openModal('modal-add-product')" title="Añadir Producto">
+                        <i class="ph ph-plus" style="font-size: 1.4rem;"></i>
+                    </button>
+                </div>
+
+                <div id="almacen-list" class="item-grid">
+                    <!-- Se inyecta por JS -->
+                </div>
+            </section>
+
+            <!-- VIEW: CAMPO (Huerto y Olivar por Parcelas) -->
+            <section id="view-campo" class="view-content hidden">
+                <div class="tab-selector">
+                    <button class="tab-btn active" id="tab-huerto-btn" onclick="toggleCultivoTab('huerto')">HUERTO</button>
+                    <button class="tab-btn" id="tab-olivar-btn" onclick="toggleCultivoTab('olivar')">OLIVAR</button>
+                </div>
+
+                <!-- HUERTO SUB-VIEW -->
+                <div id="subview-huerto">
+                    <div class="input-group">
+                        <label class="input-label" for="huerto-parcela-select">Selecciona Parcela</label>
+                        <select id="huerto-parcela-select" class="form-select" onchange="changeHuertoParcela()">
+                            <!-- Parcelas de Huerto inyectadas -->
+                        </select>
+                    </div>
+
+                    <!-- Plazo de Seguridad -->
+                    <div id="huerto-safety-alert" class="safety-alert safe">
+                        <i class="ph-fill ph-check-circle"></i>
+                        <span>Sin tratamientos activos. Seguro cosechar.</span>
+                    </div>
+
+                    <!-- Tareas del Huerto -->
+                    <div class="card">
+                        <span class="card-title"><i class="ph ph-check-square"></i> Tareas de la Parcela</span>
+                        <form onsubmit="addTask(event, 'huerto')" style="display: flex; gap: 8px; margin-bottom: 12px;">
+                            <input type="text" id="huerto-task-input" class="form-input" placeholder="Nueva tarea..." required>
+                            <button type="submit" class="btn" style="width: 44px; height: 44px; padding: 0;"><i class="ph ph-plus"></i></button>
+                        </form>
+                        <div id="huerto-task-list" class="item-grid" style="gap: 8px;">
+                            <!-- Tareas inyectadas -->
+                        </div>
+                    </div>
+
+                    <!-- Contador Rápido de Cosecha -->
+                    <div class="card">
+                        <span class="card-title"><i class="ph ph-tomato"></i> Contador de Cosecha</span>
+                        <div class="input-group" style="margin-bottom: 10px;">
+                            <select id="huerto-harvest-product" class="form-select">
+                                <option value="Tomates">Tomates</option>
+                                <option value="Pimientos">Pimientos</option>
+                                <option value="Berenjenas">Berenjenas</option>
+                                <option value="Calabacines">Calabacines</option>
+                                <option value="Lechugas">Lechugas</option>
+                            </select>
+                        </div>
+                        <div class="harvest-counter">
+                            <button class="harvest-btn-large" style="background: rgba(255,255,255,0.06); color: var(--text-primary);" onclick="adjustHarvestCounter(-1)">-1</button>
+                            <div class="harvest-total">
+                                <div class="harvest-number" id="huerto-harvest-val">0</div>
+                                <div class="harvest-unit">Unidades cosechadas</div>
+                            </div>
+                            <button class="harvest-btn-large" onclick="adjustHarvestCounter(1)">+1</button>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 10px;">
+                            <button class="btn btn-secondary" style="flex: 1; padding: 10px;" onclick="adjustHarvestCounter(5)">+5</button>
+                            <button class="btn" style="flex: 1.5; padding: 10px;" onclick="saveHuertoHarvest()"><i class="ph ph-floppy-disk"></i> Registrar al Diario</button>
+                        </div>
+                    </div>
+
+                    <!-- Historial de Tratamientos -->
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span class="card-title" style="margin: 0;"><i class="ph ph-syringe"></i> Tratamientos</span>
+                            <button class="btn" style="width: auto; padding: 6px 12px; font-size: 0.75rem; border-radius: 8px;" onclick="openApplyTreatmentModal('huerto')">Aplicar</button>
+                        </div>
+                        <div id="huerto-treatments-list" class="item-grid">
+                            <!-- Tratamientos inyectados -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OLIVAR SUB-VIEW -->
+                <div id="subview-olivar" class="hidden">
+                    <div class="input-group">
+                        <label class="input-label" for="olivar-parcela-select">Selecciona Finca/Parcela</label>
+                        <select id="olivar-parcela-select" class="form-select" onchange="changeOlivarParcela()">
+                            <!-- Parcelas de Olivar inyectadas -->
+                        </select>
+                    </div>
+
+                    <!-- Plazo de Seguridad -->
+                    <div id="olivar-safety-alert" class="safety-alert safe">
+                        <i class="ph-fill ph-check-circle"></i>
+                        <span>Finca segura para recogida.</span>
+                    </div>
+
+                    <!-- Tareas del Olivar -->
+                    <div class="card">
+                        <span class="card-title"><i class="ph ph-check-square"></i> Tareas de la Finca</span>
+                        <form onsubmit="addTask(event, 'olivar')" style="display: flex; gap: 8px; margin-bottom: 12px;">
+                            <input type="text" id="olivar-task-input" class="form-input" placeholder="Nueva tarea..." required>
+                            <button type="submit" class="btn" style="width: 44px; height: 44px; padding: 0;"><i class="ph ph-plus"></i></button>
+                        </form>
+                        <div id="olivar-task-list" class="item-grid" style="gap: 8px;">
+                            <!-- Tareas inyectadas -->
+                        </div>
+                    </div>
+
+                    <!-- Cosecha de Aceituna (Rendimiento graso) -->
+                    <div class="card gold-accent">
+                        <span class="card-title" style="color: var(--secondary);"><i class="ph ph-drop"></i> Cosecha de Aceituna</span>
+                        <form onsubmit="saveOliveHarvest(event)">
+                            <div class="inline-fields">
+                                <div class="input-group">
+                                    <label class="input-label">Kg Aceituna</label>
+                                    <input type="number" id="harvest-olive-kg" class="form-input" placeholder="Ej: 1200" required step="any">
+                                </div>
+                                <div class="input-group">
+                                    <label class="input-label">Rendimiento (%)</label>
+                                    <input type="number" id="harvest-olive-yield" class="form-input" placeholder="Ej: 21.5" required step="any">
+                                </div>
+                            </div>
+                            <div class="info-box" style="background: rgba(230, 194, 98, 0.08); border-color: rgba(230, 194, 98, 0.2); color: var(--secondary); display: none;" id="olive-oil-result-box">
+                                <i class="ph-fill ph-info"></i>
+                                <span>Aceite estimado: <strong id="olive-oil-val">0</strong> Kg</span>
+                            </div>
+                            <button type="submit" class="btn" style="background: var(--secondary); color: var(--bg-main);"><i class="ph ph-floppy-disk"></i> Registrar Cosecha</button>
+                        </form>
+
+                        <div id="olivar-harvest-list" class="item-grid" style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 10px;">
+                            <!-- Histórico de cosechas de aceituna -->
+                        </div>
+                    </div>
+
+                    <!-- Historial de Tratamientos -->
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span class="card-title" style="margin: 0;"><i class="ph ph-syringe"></i> Tratamientos</span>
+                            <button class="btn" style="width: auto; padding: 6px 12px; font-size: 0.75rem; border-radius: 8px;" onclick="openApplyTreatmentModal('olivar')">Aplicar</button>
+                        </div>
+                        <div id="olivar-treatments-list" class="item-grid">
+                            <!-- Tratamientos inyectados -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: CROQUIS INTERACTIVO -->
+            <section id="view-croquis" class="view-content hidden">
+                <div class="card">
+                    <span class="card-title"><i class="ph ph-grid-four"></i> Croquis de Parcelas</span>
+                    <p class="card-subtitle">Control táctil del estado del terreno por sectores o árboles.</p>
+
+                    <div class="input-group">
+                        <label class="input-label" for="croquis-parcela-select">Selecciona Terreno</label>
+                        <select id="croquis-parcela-select" class="form-select" onchange="renderCroquis()">
+                            <!-- Inyectado por JS -->
+                        </select>
+                    </div>
+
+                    <div class="croquis-grid" id="croquis-grid">
+                        <!-- Cuadrícula interactiva -->
+                    </div>
+
+                    <div class="croquis-legend">
+                        <div class="legend-item"><div class="legend-color" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color);"></div> Normal</div>
+                        <div class="legend-item"><div class="legend-color" style="background: var(--primary);"></div> Tratado</div>
+                        <div class="legend-item"><div class="legend-color" style="background: var(--warning);"></div> Tarea Pendiente</div>
+                        <div class="legend-item"><div class="legend-color" style="background: var(--danger);"></div> Plaga</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: CALCULADORA DE MEZCLA -->
+            <section id="view-calculadora" class="view-content hidden">
+                <div class="card">
+                    <span class="card-title"><i class="ph ph-calculator"></i> Calculadora de Dosis</span>
+                    <p class="card-subtitle">Calcula el fitosanitario o abono a disolver según la capacidad de tu cuba/mochila.</p>
+
+                    <!-- Preselección Cuba/Mochila -->
+                    <div style="display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 6px;">
+                        <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.75rem; border-radius: 8px;" onclick="setCalculatorPreset(1000)">Cuba 1000L</button>
+                        <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.75rem; border-radius: 8px;" onclick="setCalculatorPreset(800)">Cuba 800L</button>
+                        <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.75rem; border-radius: 8px;" onclick="setCalculatorPreset(100)">Depósito 100L</button>
+                        <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.75rem; border-radius: 8px;" onclick="setCalculatorPreset(15)">Mochila 15L</button>
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label" for="calc-tank-size">Capacidad del Tanque / Mochila (Litros)</label>
+                        <input type="number" id="calc-tank-size" class="form-input" placeholder="Ej: 15" oninput="calculateDosage()" step="any">
+                    </div>
+
+                    <div class="inline-fields">
+                        <div class="input-group" style="flex: 2;">
+                            <label class="input-label" for="calc-dose-val">Dosis de Fabricante</label>
+                            <input type="number" id="calc-dose-val" class="form-input" placeholder="Ej: 2.5" oninput="calculateDosage()" step="any">
+                        </div>
+                        <div class="input-group" style="flex: 1.5;">
+                            <label class="input-label" for="calc-dose-unit">Unidad</label>
+                            <select id="calc-dose-unit" class="form-select" onchange="calculateDosage()">
+                                <option value="ml/L">ml/Litro</option>
+                                <option value="g/L">g/Litro</option>
+                                <option value="ml/100L">ml/100 Litros</option>
+                                <option value="g/100L">g/100 Litros</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Resultado Final -->
+                    <div style="background: rgba(143, 167, 107, 0.1); border: 1px solid var(--primary); border-radius: var(--radius-sm); padding: 1.25rem; text-align: center; margin-top: 15px;">
+                        <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary-light); text-transform: uppercase; letter-spacing: 0.5px;">Cantidad a Añadir</span>
+                        <div style="font-size: 2.2rem; font-weight: 850; color: var(--text-primary); margin-top: 5px;" id="calc-result">
+                            0.00
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: DIARIO / BITÁCORA -->
+            <section id="view-diario" class="view-content hidden">
+                <div class="card">
+                    <span class="card-title"><i class="ph ph-book-open"></i> Bitácora de Campo</span>
+                    <p class="card-subtitle">Anotaciones rápidas y alertas visuales con fotos sobre plagas y eventos.</p>
+
+                    <form onsubmit="saveJournalEntry(event)">
+                        <div class="input-group">
+                            <label class="input-label" for="journal-text-input">Observación / Nota</label>
+                            <textarea id="journal-text-input" class="form-textarea" placeholder="Escribe lo que has detectado o hecho hoy..." required></textarea>
+                        </div>
+
+                        <!-- Carga de Imagen Simulada -->
+                        <div class="image-upload-btn" id="photo-upload-trigger" onclick="triggerPhotoMock()">
+                            <i class="ph ph-camera"></i>
+                            <span id="photo-upload-text">Simular foto de observación</span>
+                        </div>
+                        <div id="photo-preview-container" class="journal-photo-placeholder hidden" style="height: 120px; margin-bottom: 12px;">
+                            <img id="photo-preview-img" src="" alt="Vista previa">
+                        </div>
+
+                        <button type="submit" class="btn"><i class="ph ph-floppy-disk"></i> Guardar Nota</button>
+                    </form>
+                </div>
+
+                <div id="journal-list">
+                    <!-- Notas inyectadas -->
+                </div>
+            </section>
+
+            <!-- VIEW: ECONOMÍA Y AJUSTES -->
+            <section id="view-economia" class="view-content hidden">
+                <!-- Tarjetas financieras -->
+                <div class="finance-summary">
+                    <div class="finance-card">
+                        <div class="finance-label">Gastos (Productos)</div>
+                        <div class="finance-value expense" id="fin-expenses">0.00 €</div>
+                    </div>
+                    <div class="finance-card">
+                        <div class="finance-label">Ingresos Cosechas</div>
+                        <div class="finance-value income" id="fin-income">0.00 €</div>
+                    </div>
+                </div>
+                <div class="finance-card" style="width: 100%; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 1.5rem;">
+                    <div class="finance-label" style="margin: 0; text-align: left;">Balance Neto Estimado</div>
+                    <div class="finance-value balance" id="fin-balance" style="font-size: 1.5rem;">0.00 €</div>
+                </div>
+
+                <!-- Configuración y Backups -->
+                <div class="card">
+                    <span class="card-title"><i class="ph ph-gear-six"></i> Copia de Seguridad y Configuración</span>
+                    <p class="card-subtitle">Administra los datos locales de tu cuaderno de campo.</p>
+
+                    <div class="info-box">
+                        <i class="ph ph-warning"></i>
+                        <span>Los datos se guardan en el navegador de forma local. Te recomendamos exportar periódicamente para no perder tu información.</span>
+                    </div>
+
+                    <div class="backup-section">
+                        <button class="btn btn-secondary" onclick="exportData()"><i class="ph ph-download-simple"></i> Exportar</button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()"><i class="ph ph-upload-simple"></i> Importar</button>
+                    </div>
+                    <input type="file" id="import-file-input" style="display: none;" onchange="importData(event)" accept=".json">
+
+                    <button class="btn btn-danger" style="margin-top: 15px;" onclick="resetAppData()"><i class="ph ph-trash"></i> Restablecer Aplicación</button>
+                </div>
+            </section>
+
+        </div> <!-- End app-ui -->
+
+        <!-- Bottom Tab Bar -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" onclick="switchView('almacen')" id="nav-almacen">
+                <i class="ph ph-warehouse"></i>
+                <span>Almacén</span>
+            </button>
+            <button class="nav-item" onclick="switchView('campo')" id="nav-campo">
+                <i class="ph ph-plant"></i>
+                <span>Campo</span>
+            </button>
+            <button class="nav-item" onclick="switchView('croquis')" id="nav-croquis">
+                <i class="ph ph-grid-four"></i>
+                <span>Croquis</span>
+            </button>
+            <button class="nav-item" onclick="switchView('calculadora')" id="nav-calculadora">
+                <i class="ph ph-calculator"></i>
+                <span>Cálculo</span>
+            </button>
+            <button class="nav-item" onclick="switchView('diario')" id="nav-diario">
+                <i class="ph ph-book-open"></i>
+                <span>Diario</span>
+            </button>
+            <button class="nav-item" onclick="switchView('economia')" id="nav-economia">
+                <i class="ph ph-coins"></i>
+                <span>Economía</span>
+            </button>
+        </nav>
+
+        <!-- MODAL: ADD PRODUCT -->
+        <div id="modal-add-product" class="action-sheet-overlay" onclick="closeModal('modal-add-product')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title">Agregar Producto</span>
+                    <button class="close-sheet" onclick="closeModal('modal-add-product')"><i class="ph ph-x"></i></button>
+                </div>
+                <form onsubmit="addProduct(event)">
+                    <div class="input-group">
+                        <label class="input-label" for="prod-name">Nombre del Producto</label>
+                        <input type="text" id="prod-name" class="form-input" placeholder="Ej: Glifosato, Cobre, Urea" required autocomplete="off">
+                    </div>
+                    <div class="inline-fields">
+                        <div class="input-group">
+                            <label class="input-label" for="prod-type">Tipo</label>
+                            <select id="prod-type" class="form-select">
+                                <option value="insecticida">Insecticida</option>
+                                <option value="herbicida">Herbicida</option>
+                                <option value="abono">Abono</option>
+                                <option value="fungicida">Fungicida</option>
+                                <option value="otro">Otro / Herramienta</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="prod-stock">Stock Inicial</label>
+                            <input type="number" id="prod-stock" class="form-input" placeholder="Cant." required step="any">
+                        </div>
+                    </div>
+                    <div class="inline-fields">
+                        <div class="input-group">
+                            <label class="input-label" for="prod-price">Precio Unitario (€)</label>
+                            <input type="number" id="prod-price" class="form-input" placeholder="Ej: 12.50" required step="any">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="prod-dose">Dosis Recomendada</label>
+                            <input type="text" id="prod-dose" class="form-input" placeholder="Ej: 2ml/L" required autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="prod-function">Función ("¿Para qué sirve?")</label>
+                        <input type="text" id="prod-function" class="form-input" placeholder="Ej: Contra malezas de hoja ancha, aporte de Nitrógeno" required autocomplete="off">
+                    </div>
+                    <button type="submit" class="btn"><i class="ph ph-floppy-disk"></i> Guardar en Almacén</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL: APPLY TREATMENT -->
+        <div id="modal-apply-treatment" class="action-sheet-overlay" onclick="closeModal('modal-apply-treatment')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title">Registrar Tratamiento</span>
+                    <button class="close-sheet" onclick="closeModal('modal-apply-treatment')"><i class="ph ph-x"></i></button>
+                </div>
+                <form onsubmit="applyTreatment(event)">
+                    <input type="hidden" id="treatment-type"> <!-- 'huerto' o 'olivar' -->
+                    <div class="input-group">
+                        <label class="input-label" for="treatment-product">Producto del Almacén</label>
+                        <select id="treatment-product" class="form-select" required>
+                            <!-- Inyectado por JS de los productos con stock > 0 -->
+                        </select>
+                    </div>
+                    <div class="inline-fields">
+                        <div class="input-group">
+                            <label class="input-label" for="treatment-dose">Dosis Real Usada</label>
+                            <input type="text" id="treatment-dose" class="form-input" placeholder="Ej: 2.5 ml/L o 200g" required autocomplete="off">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="treatment-amount">Cantidad Descontada Stock</label>
+                            <input type="number" id="treatment-amount" class="form-input" placeholder="Ej: 2" required step="any">
+                        </div>
+                    </div>
+                    <div class="inline-fields">
+                        <div class="input-group">
+                            <label class="input-label" for="treatment-safety-days">Plazo de Seguridad (Días)</label>
+                            <input type="number" id="treatment-safety-days" class="form-input" placeholder="0 = Sin plazo" value="0" required>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="treatment-date">Fecha de Aplicación</label>
+                            <input type="date" id="treatment-date" class="form-input" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn"><i class="ph ph-syringe"></i> Aplicar Tratamiento</button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Script de lógica de la aplicación -->
+    <script src="app.js"></script>
+
+    <!-- Register Service Worker -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').then(reg => {
+            console.log('Service Worker registrado con éxito:', reg.scope);
+          }).catch(err => {
+            console.error('Error al registrar el Service Worker:', err);
+          });
+        });
+      }
+    </script>
+</body>
+</html>
