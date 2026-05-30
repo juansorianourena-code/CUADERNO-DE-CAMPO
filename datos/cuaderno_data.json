@@ -1,0 +1,65 @@
+{
+  "almacen": [],
+  "huerto": {
+    "parcelas": {
+      "huerto-general": "Huerto Principal"
+    },
+    "plantaciones": {},
+    "tareas": {},
+    "tratamientos": {},
+    "cosechas": []
+  },
+  "olivar": {
+    "parcelas": {
+      "olivar-general": "Olivar Principal"
+    },
+    "tareas": {},
+    "tratamientos": {},
+    "cosechas": []
+  },
+  "croquis": {
+    "huerto-general": [
+      {"id": 1, "label": "Zona 1", "state": "normal"},
+      {"id": 2, "label": "Zona 2", "state": "normal"},
+      {"id": 3, "label": "Zona 3", "state": "normal"},
+      {"id": 4, "label": "Zona 4", "state": "normal"},
+      {"id": 5, "label": "Zona 5", "state": "normal"},
+      {"id": 6, "label": "Zona 6", "state": "normal"},
+      {"id": 7, "label": "Zona 7", "state": "normal"},
+      {"id": 8, "label": "Zona 8", "state": "normal"},
+      {"id": 9, "label": "Zona 9", "state": "normal"},
+      {"id": 10, "label": "Zona 10", "state": "normal"},
+      {"id": 11, "label": "Zona 11", "state": "normal"},
+      {"id": 12, "label": "Zona 12", "state": "normal"},
+      {"id": 13, "label": "Zona 13", "state": "normal"},
+      {"id": 14, "label": "Zona 14", "state": "normal"},
+      {"id": 15, "label": "Zona 15", "state": "normal"},
+      {"id": 16, "label": "Zona 16", "state": "normal"}
+    ],
+    "olivar-general": [
+      {"id": 1, "label": "Olivo 1", "state": "normal"},
+      {"id": 2, "label": "Olivo 2", "state": "normal"},
+      {"id": 3, "label": "Olivo 3", "state": "normal"},
+      {"id": 4, "label": "Olivo 4", "state": "normal"},
+      {"id": 5, "label": "Olivo 5", "state": "normal"},
+      {"id": 6, "label": "Olivo 6", "state": "normal"},
+      {"id": 7, "label": "Olivo 7", "state": "normal"},
+      {"id": 8, "label": "Olivo 8", "state": "normal"},
+      {"id": 9, "label": "Olivo 9", "state": "normal"},
+      {"id": 10, "label": "Olivo 10", "state": "normal"},
+      {"id": 11, "label": "Olivo 11", "state": "normal"},
+      {"id": 12, "label": "Olivo 12", "state": "normal"},
+      {"id": 13, "label": "Olivo 13", "state": "normal"},
+      {"id": 14, "label": "Olivo 14", "state": "normal"},
+      {"id": 15, "label": "Olivo 15", "state": "normal"},
+      {"id": 16, "label": "Olivo 16", "state": "normal"}
+    ]
+  },
+  "diario": [],
+  "currentView": "almacen",
+  "currentCultivoTab": "huerto",
+  "currentHuertoParcela": "huerto-general",
+  "currentOlivarParcela": "olivar-general",
+  "currentCroquisParcela": "huerto-general",
+  "selectedMockPhoto": null
+}

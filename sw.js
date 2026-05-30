@@ -5,7 +5,11 @@ const ASSETS = [
   './styles.css',
   './app.js',
   './manifest.json',
-  './icon.png'
+  './icon.png',
+  './phosphor-regular.css',
+  './phosphor-fill.css',
+  './Phosphor.woff2',
+  './Phosphor-Fill.woff2'
 ];
 
 self.addEventListener('install', (e) => {

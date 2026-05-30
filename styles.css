@@ -32,7 +32,7 @@
 }
 
 body {
-    font-family: 'Outfit', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg-main);
     background-image: var(--bg-gradient);
     color: var(--text-primary);
@@ -931,4 +931,88 @@ body {
 .info-box i {
     font-size: 1rem;
     margin-top: 2px;
+}
+
+/* --- Google Drive Sync & Persistence --- */
+.sync-panel {
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 15px;
+}
+
+.sync-status-card {
+    transition: all 0.3s ease;
+}
+
+.sync-status-card.connected {
+    background: rgba(143, 167, 107, 0.08) !important;
+    border: 1px solid rgba(143, 167, 107, 0.2) !important;
+}
+
+.sync-status-card.disconnected {
+    background: rgba(230, 194, 98, 0.08) !important;
+    border: 1px solid rgba(230, 194, 98, 0.2) !important;
+}
+
+.status-badge {
+    animation: statusPulse 2s infinite ease-in-out;
+}
+
+@keyframes statusPulse {
+    0% { opacity: 0.8; }
+    50% { opacity: 1; }
+    100% { opacity: 0.8; }
+}
+
+.persistence-status {
+    padding: 8px 12px;
+    background: rgba(143, 167, 107, 0.05);
+    border-radius: 8px;
+    border: 1px dashed rgba(143, 167, 107, 0.25);
+}
+
+/* --- details summary custom list-style reset --- */
+.advanced-sync-details summary {
+    list-style: none;
+}
+.advanced-sync-details summary::-webkit-details-marker {
+    display: none;
+}
+
+/* --- CLOUD SYNC STATUS INDICATOR --- */
+.cloud-sync-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 6px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    cursor: help;
+}
+
+.cloud-sync-status i {
+    font-size: 1.15rem;
+    transition: all 0.3s ease;
+}
+
+.cloud-sync-status.syncing i {
+    color: var(--secondary);
+    animation: cloudPulse 1.2s infinite ease-in-out;
+}
+
+.cloud-sync-status.saved i {
+    color: var(--success);
+}
+
+.cloud-sync-status.offline i {
+    color: var(--warning);
+}
+
+@keyframes cloudPulse {
+    0% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 0.6; }
 }

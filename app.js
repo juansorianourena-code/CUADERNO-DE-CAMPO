@@ -95,10 +95,549 @@ function seedInitialData() {
     });
 }
 
-// Save & Load
-function saveState() {
+// --- INDEXEDDB HELPER FOR BACKUP & FILE HANDLE ---
+const DB_NAME = 'cuaderno_campo_indexeddb';
+const STORE_NAME = 'app_data';
+
+function getDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 2);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
+            }
+        };
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = (e) => reject(e.target.error);
+    });
+}
+
+async function saveToIndexedDB(key, val) {
+    try {
+        const db = await getDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.put(val, key);
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error);
+        });
+    } catch (err) {
+        console.error("Error al guardar en IndexedDB:", err);
+    }
+}
+
+async function getFromIndexedDB(key) {
+    try {
+        const db = await getDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.get(key);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    } catch (err) {
+        console.error("Error al leer de IndexedDB:", err);
+        return null;
+    }
+}
+
+async function deleteFromIndexedDB(key) {
+    try {
+        const db = await getDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.delete(key);
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error);
+        });
+    } catch (err) {
+        console.error("Error al eliminar de IndexedDB:", err);
+    }
+}
+
+// --- FILE SYSTEM ACCESS API SYNC LOGIC ---
+let linkedFileHandle = null;
+const isFileSystemAccessSupported = typeof window.showOpenFilePicker === 'function';
+
+async function verifyFilePermission(handle, withPrompt = false) {
+    const opts = { mode: 'readwrite' };
+    if ((await handle.queryPermission(opts)) === 'granted') {
+        return true;
+    }
+    if (withPrompt) {
+        try {
+            if ((await handle.requestPermission(opts)) === 'granted') {
+                return true;
+            }
+        } catch (e) {
+            console.error("Permiso denegado por el navegador/usuario:", e);
+        }
+    }
+    return false;
+}
+
+async function readLinkedFile() {
+    if (!linkedFileHandle) return null;
+    try {
+        const file = await linkedFileHandle.getFile();
+        const content = await file.text();
+        if (!content.trim()) return null;
+        return JSON.parse(content);
+    } catch (err) {
+        console.error("Error al leer el archivo vinculado:", err);
+        return null;
+    }
+}
+
+async function writeLinkedFile() {
+    if (!linkedFileHandle) return;
+    try {
+        const writable = await linkedFileHandle.createWritable();
+        await writable.write(JSON.stringify(state, null, 2));
+        await writable.close();
+        console.log("Datos auto-guardados en el archivo vinculado de Drive.");
+    } catch (err) {
+        console.error("Error al auto-guardar en el archivo vinculado:", err);
+    }
+}
+
+async function linkExistingFile() {
+    if (!isFileSystemAccessSupported) {
+        showToast("Tu navegador no soporta el acceso directo a archivos.", "error");
+        return;
+    }
+    try {
+        const [handle] = await window.showOpenFilePicker({
+            types: [{
+                description: 'Archivo de datos JSON',
+                accept: {
+                    'application/json': ['.json']
+                }
+            }],
+            multiple: false
+        });
+        
+        // Read contents to verify
+        const file = await handle.getFile();
+        const content = await file.text();
+        let parsed = null;
+        if (content.trim()) {
+            try {
+                parsed = JSON.parse(content);
+            } catch (e) {
+                showToast("El archivo seleccionado no es un JSON válido.", "error");
+                return;
+            }
+        }
+
+        if (parsed && (parsed.almacen || parsed.huerto || parsed.olivar)) {
+            linkedFileHandle = handle;
+            await saveToIndexedDB('file_handle', handle);
+            state = parsed;
+            saveState(true);
+            showToast("Archivo de Google Drive vinculado correctamente.", "success");
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            if (confirm("El archivo está vacío o no es compatible. ¿Quieres guardar tus datos actuales de la app en él para vincularlo?")) {
+                linkedFileHandle = handle;
+                await saveToIndexedDB('file_handle', handle);
+                await writeLinkedFile();
+                showToast("Archivo inicializado con tus datos actuales.", "success");
+                updateSyncUI();
+            }
+        }
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            console.error(err);
+            showToast("Error al vincular el archivo", "error");
+        }
+    }
+}
+
+async function createNewSyncFile() {
+    if (!isFileSystemAccessSupported) {
+        showToast("Tu navegador no soporta el acceso directo a archivos.", "error");
+        return;
+    }
+    try {
+        const handle = await window.showSaveFilePicker({
+            suggestedName: 'cuaderno_data.json',
+            types: [{
+                description: 'Archivo de datos JSON',
+                accept: {
+                    'application/json': ['.json']
+                }
+            }]
+        });
+        
+        linkedFileHandle = handle;
+        await saveToIndexedDB('file_handle', handle);
+        await writeLinkedFile();
+        showToast("Archivo de sincronización creado y vinculado.", "success");
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            console.error(err);
+            showToast("Error al crear el archivo", "error");
+        }
+    }
+}
+
+async function forceSaveToFile() {
+    if (!linkedFileHandle) return;
+    const hasPermission = await verifyFilePermission(linkedFileHandle, true);
+    if (hasPermission) {
+        await writeLinkedFile();
+        showToast("Datos locales subidos al archivo con éxito", "success");
+    } else {
+        showToast("Requiere permiso de escritura para guardar.", "error");
+    }
+}
+
+async function forceLoadFromFile() {
+    if (!linkedFileHandle) return;
+    const hasPermission = await verifyFilePermission(linkedFileHandle, true);
+    if (hasPermission) {
+        const fileData = await readLinkedFile();
+        if (fileData) {
+            state = fileData;
+            saveState(false);
+            updateUI();
+            showToast("Datos bajados del archivo con éxito", "success");
+        } else {
+            showToast("El archivo está vacío.", "error");
+        }
+    } else {
+        showToast("Requiere permiso de lectura para cargar.", "error");
+    }
+}
+
+async function unlinkFile() {
+    if (confirm("¿Estás seguro de que quieres desvincular el archivo de Google Drive? Los datos seguirán guardados en tu navegador.")) {
+        linkedFileHandle = null;
+        await deleteFromIndexedDB('file_handle');
+        showToast("Archivo desvinculado.", "info");
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    }
+}
+
+async function reconnectFile() {
+    const savedHandle = await getFromIndexedDB('file_handle');
+    if (savedHandle) {
+        const granted = await verifyFilePermission(savedHandle, true);
+        if (granted) {
+            linkedFileHandle = savedHandle;
+            const fileData = await readLinkedFile();
+            if (fileData) {
+                state = fileData;
+                saveState(false);
+                updateUI();
+                showToast("Archivo reconectado y sincronizado", "success");
+            } else {
+                await writeLinkedFile();
+                showToast("Archivo reconectado con éxito", "success");
+            }
+            updateSyncUI();
+        } else {
+            showToast("Permiso denegado.", "error");
+        }
+    }
+}
+
+// --- STORAGE PERSISTENCE API ---
+async function requestPersistence() {
+    if (navigator.storage && navigator.storage.persist) {
+        const granted = await navigator.storage.persist();
+        if (granted) {
+            showToast("Almacenamiento persistente activado", "success");
+        } else {
+            showToast("El navegador denegó la persistencia.", "info");
+        }
+        updateSyncUI();
+    }
+}
+
+// --- SYNC STATE AND DYNAMIC UI ---
+async function initSyncAndIndexedDB() {
+    // Restore from IndexedDB backup if localStorage is empty
+    const localData = localStorage.getItem('cuaderno_campo_data');
+    if (!localData) {
+        const backup = await getFromIndexedDB('state_backup');
+        if (backup) {
+            state = backup;
+            localStorage.setItem('cuaderno_campo_data', JSON.stringify(state));
+            updateUI();
+            showToast("Datos recuperados de la copia interna (IndexedDB)", "info");
+        }
+    } else {
+        saveToIndexedDB('state_backup', state);
+    }
+
+    // Verify linked file
+    if (isFileSystemAccessSupported) {
+        const savedHandle = await getFromIndexedDB('file_handle');
+        if (savedHandle) {
+            const hasPermission = await verifyFilePermission(savedHandle, false);
+            if (hasPermission) {
+                linkedFileHandle = savedHandle;
+                const fileData = await readLinkedFile();
+                if (fileData) {
+                    state = fileData;
+                    localStorage.setItem('cuaderno_campo_data', JSON.stringify(state));
+                    saveToIndexedDB('state_backup', state);
+                    updateUI();
+                    console.log("Datos sincronizados con archivo de Drive.");
+                }
+            } else {
+                console.log("Archivo vinculado detectado pero requiere autorización.");
+            }
+        }
+    }
+
+    // Cloud Sync Load
+    try {
+        setCloudStatus('syncing');
+        const response = await fetch(CLOUD_SYNC_URL);
+        if (response.ok) {
+            const cloudData = await response.json();
+            if (cloudData && (cloudData.almacen || cloudData.huerto || cloudData.olivar)) {
+                const localLastUpdated = state.lastUpdated || 0;
+                const cloudLastUpdated = cloudData.lastUpdated || 0;
+                
+                if (cloudLastUpdated > localLastUpdated) {
+                    state = cloudData;
+                    localStorage.setItem('cuaderno_campo_data', JSON.stringify(state));
+                    saveToIndexedDB('state_backup', state);
+                    updateUI();
+                    showToast("Datos sincronizados con la nube (KVdb).", "success");
+                    setCloudStatus('saved');
+                } else if (localLastUpdated > cloudLastUpdated) {
+                    // Local is newer, upload it to cloud
+                    await uploadToCloud();
+                } else {
+                    // Equal or no changes
+                    setCloudStatus('saved');
+                }
+            } else {
+                // Cloud empty or invalid, upload local
+                await uploadToCloud();
+            }
+        } else {
+            console.error("Error al leer de la nube:", response.status);
+            setCloudStatus('offline');
+        }
+    } catch (err) {
+        console.error("Error al conectar con la nube para sincronizar:", err);
+        setCloudStatus('offline');
+    }
+
+    updateSyncUI();
+}
+
+async function updateSyncUI() {
+    const syncContainer = document.getElementById('sync-container');
+    const persistenceContainer = document.getElementById('persistence-container');
+    if (!syncContainer) return;
+
+    // 1. Persistence
+    if (navigator.storage && navigator.storage.persist) {
+        const persisted = await navigator.storage.persisted();
+        if (persisted) {
+            persistenceContainer.innerHTML = `
+                <div class="persistence-status" style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--success); background: rgba(143, 167, 107, 0.05); padding: 8px 12px; border-radius: 8px; border: 1px dashed rgba(143, 167, 107, 0.25);">
+                    <i class="ph-fill ph-check-circle" style="font-size: 1.1rem;"></i>
+                    <span><strong>Almacenamiento protegido:</strong> El navegador no borrará tus datos para liberar espacio.</span>
+                </div>
+            `;
+        } else {
+            persistenceContainer.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="info-box" style="margin: 0; padding: 10px; font-size: 0.75rem; border-color: rgba(230, 194, 98, 0.15); background: rgba(230, 194, 98, 0.04);">
+                        <i class="ph ph-warning" style="color: var(--warning);"></i>
+                        <span>El navegador podría borrar tus datos locales bajo mucha presión de espacio en disco.</span>
+                    </div>
+                    <button class="btn btn-secondary" onclick="requestPersistence()" style="padding: 8px; font-size: 0.75rem; border-radius: 8px;">
+                        <i class="ph ph-shield-check"></i> Proteger Datos en el Navegador
+                    </button>
+                </div>
+            `;
+        }
+    } else {
+        persistenceContainer.innerHTML = '';
+    }
+
+    // 2. Drive Sync
+    if (!isFileSystemAccessSupported) {
+        syncContainer.innerHTML = `
+            <div class="info-box" style="margin: 0; background: rgba(255, 255, 255, 0.02); border-color: var(--border-color); color: var(--text-secondary);">
+                <i class="ph ph-info" style="color: var(--primary-light);"></i>
+                <div style="font-size: 0.8rem;">
+                    <strong>Sincronización automática no soportada:</strong> Tu navegador actual (Safari/iOS) no permite acceso directo a archivos. Los datos se guardan de forma muy segura en la memoria interna (IndexedDB), pero te recomendamos descargar copias periódicas de seguridad usando el botón <strong>Exportar</strong>.
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    const savedHandle = await getFromIndexedDB('file_handle');
+    if (!savedHandle) {
+        syncContainer.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div class="info-box" style="margin: 0; background: rgba(255, 255, 255, 0.03); border-color: var(--border-color);">
+                    <i class="ph ph-folder" style="color: var(--text-muted); font-size: 1.2rem; margin-top: 1px;"></i>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                        <strong>Sincroniza con Google Drive:</strong> Vincula un archivo local para que el cuaderno se auto-guarde en tu disco.
+                        <br><span style="color: var(--primary-light);">Ruta recomendada: selecciona <code>datos/cuaderno_data.json</code> en tu carpeta de Google Drive.</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary" onclick="linkExistingFile()" style="flex: 1; padding: 10px; font-size: 0.8rem; border-radius: 8px;">
+                        <i class="ph ph-link"></i> Vincular Archivo
+                    </button>
+                    <button class="btn" onclick="createNewSyncFile()" style="flex: 1; padding: 10px; font-size: 0.8rem; border-radius: 8px;">
+                        <i class="ph ph-file-plus"></i> Crear Nuevo
+                    </button>
+                </div>
+            </div>
+        `;
+    } else {
+        const fileName = savedHandle.name;
+        if (linkedFileHandle) {
+            syncContainer.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <div class="sync-status-card connected" style="display: flex; flex-direction: column; gap: 8px; background: rgba(143, 167, 107, 0.08); border: 1px solid rgba(143, 167, 107, 0.2); padding: 12px; border-radius: var(--radius-sm);">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                                <i class="ph-fill ph-check-circle" style="color: var(--success); font-size: 1.1rem;"></i> Sincronización Activa
+                            </span>
+                            <span class="status-badge" style="background: rgba(143,167,107,0.15); color: var(--success); font-size: 0.7rem; font-weight: 700; padding: 4px 8px; border-radius: 20px; text-transform: uppercase;">Conectado</span>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); border-top: 1px solid rgba(143,167,107,0.15); padding-top: 6px; margin-top: 2px; line-height: 1.4;">
+                            Archivo: <strong>${fileName}</strong>
+                            <br><span style="color: var(--success); font-weight: 700; display: inline-block; margin-top: 4px;">✨ ¡Todos los cambios se guardan solos! No tienes que pulsar ningún botón.</span>
+                        </div>
+                    </div>
+                    <details class="advanced-sync-details" style="margin-top: 4px;">
+                        <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; display: flex; align-items: center; gap: 4px; outline: none; list-style: none;">
+                            <i class="ph ph-gear" style="font-size: 0.85rem;"></i> Acciones avanzadas (manuales)
+                        </summary>
+                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                            <button class="btn btn-secondary" onclick="forceSaveToFile()" style="flex: 1; padding: 8px; font-size: 0.75rem; border-radius: 8px;" title="Sobrescribir archivo de Drive con los datos locales">
+                                <i class="ph ph-cloud-arrow-up"></i> Forzar Subida
+                            </button>
+                            <button class="btn btn-secondary" onclick="forceLoadFromFile()" style="flex: 1; padding: 8px; font-size: 0.75rem; border-radius: 8px;" title="Sobrescribir local con los datos del archivo de Drive">
+                                <i class="ph ph-cloud-arrow-down"></i> Forzar Bajada
+                            </button>
+                            <button class="btn btn-danger" onclick="unlinkFile()" style="width: auto; padding: 8px 12px; border-radius: 8px;" title="Desvincular archivo">
+                                <i class="ph ph-link-break"></i>
+                            </button>
+                        </div>
+                    </details>
+                </div>
+            `;
+        } else {
+            syncContainer.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <div class="sync-status-card disconnected" style="display: flex; align-items: center; justify-content: space-between; background: rgba(230, 194, 98, 0.08); border: 1px solid rgba(230, 194, 98, 0.2); padding: 12px; border-radius: var(--radius-sm);">
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                                <i class="ph-fill ph-warning" style="color: var(--warning); font-size: 1.1rem;"></i> Sincronización Pausada
+                            </span>
+                            <span style="font-size: 0.75rem; color: var(--text-muted); padding-left: 24px;">Archivo: <strong>${fileName}</strong></span>
+                        </div>
+                        <span class="status-badge" style="background: rgba(230,194,98,0.15); color: var(--warning); font-size: 0.7rem; font-weight: 700; padding: 4px 8px; border-radius: 20px; text-transform: uppercase;">Sin Permiso</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button class="btn" onclick="reconnectFile()" style="padding: 10px; font-size: 0.8rem; border-radius: 8px; width: 100%;">
+                            <i class="ph ph-key"></i> Autorizar y Sincronizar
+                        </button>
+                        <button class="btn btn-danger" onclick="unlinkFile()" style="padding: 8px; font-size: 0.75rem; border-radius: 8px; width: 100%;">
+                            <i class="ph ph-link-break"></i> Cancelar Vinculación
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+    }
+}
+
+// --- CLOUD DB SYNC LOGIC (KVdb.io) ---
+const CLOUD_SYNC_URL = 'https://kvdb.io/6tH9CVtrrWAsdbrcNb4Gd1/cuaderno_campo_data';
+
+function setCloudStatus(status) {
+    const el = document.getElementById('cloud-sync-status');
+    if (!el) return;
+    
+    el.className = 'cloud-sync-status ' + status;
+    
+    let iconHTML = '';
+    let titleText = '';
+    if (status === 'syncing') {
+        iconHTML = '<i class="ph ph-cloud-arrow-up"></i>';
+        titleText = 'Sincronizando con la nube...';
+    } else if (status === 'saved') {
+        iconHTML = '<i class="ph-fill ph-cloud-check"></i>';
+        titleText = 'Todos los cambios guardados en la nube';
+    } else if (status === 'offline') {
+        iconHTML = '<i class="ph ph-cloud-warning"></i>';
+        titleText = 'Sin conexión. Se guardará al recuperar red.';
+    } else {
+        iconHTML = '<i class="ph ph-cloud-slash"></i>';
+        titleText = 'Sincronización no configurada';
+    }
+    
+    el.innerHTML = iconHTML;
+    el.title = titleText;
+}
+
+async function uploadToCloud() {
+    try {
+        setCloudStatus('syncing');
+        const response = await fetch(CLOUD_SYNC_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(state)
+        });
+        if (response.ok) {
+            setCloudStatus('saved');
+            console.log("Datos auto-guardados en la nube.");
+        } else {
+            console.error("Error al auto-guardar en la nube:", response.status);
+            setCloudStatus('offline');
+        }
+    } catch (err) {
+        console.error("Error de red al auto-guardar en la nube:", err);
+        setCloudStatus('offline');
+    }
+}
+
+// Save State
+function saveState(writeToDisk = true, writeToCloud = true) {
+    // Add update timestamp
+    state.lastUpdated = Date.now();
+
     localStorage.setItem('cuaderno_campo_data', JSON.stringify(state));
+    saveToIndexedDB('state_backup', state);
+    if (writeToDisk && linkedFileHandle) {
+        writeLinkedFile();
+    }
+    if (writeToCloud) {
+        uploadToCloud();
+    }
     updateUI();
+    updateSyncUI();
 }
 
 // ... Load State with migration/backward compatibility ...
@@ -1276,9 +1815,21 @@ function importData(e) {
     reader.readAsText(file);
 }
 
-function resetAppData() {
+async function resetAppData() {
     if (confirm("🚨 ¿ATENCIÓN! Estás a punto de borrar todos tus datos y reiniciar el cuaderno. ¿Quieres proceder?")) {
         localStorage.removeItem('cuaderno_campo_data');
+        await deleteFromIndexedDB('state_backup');
+        try {
+            await fetch(CLOUD_SYNC_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: '{}'
+            });
+        } catch (e) {
+            console.error("Error al limpiar los datos en la nube:", e);
+        }
         showToast("Reiniciando datos...", "info");
         setTimeout(() => {
             window.location.reload();
@@ -1345,4 +1896,7 @@ window.addEventListener('DOMContentLoaded', () => {
     renderWeather();
     switchView(state.currentView);
     toggleCultivoTab(state.currentCultivoTab);
+    
+    // Background sync and IndexedDB backup
+    initSyncAndIndexedDB();
 });

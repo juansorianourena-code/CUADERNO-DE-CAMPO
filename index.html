@@ -5,11 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cuaderno de Campo Digital</title>
     
-    <!-- Google Fonts (Outfit) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;850&display=swap" rel="stylesheet">
-    
     <!-- PWA Config -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#121612">
@@ -20,8 +15,9 @@
     <meta name="apple-mobile-web-app-title" content="CampoDigital">
     <link rel="apple-touch-icon" href="./icon.png">
 
-    <!-- Phosphor Icons -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Phosphor Icons (Local) -->
+    <link rel="stylesheet" href="phosphor-regular.css">
+    <link rel="stylesheet" href="phosphor-fill.css">
     
     <!-- Stylesheet -->
     <link rel="stylesheet" href="styles.css">
@@ -35,6 +31,9 @@
             <div style="display: flex; align-items: center; gap: 8px;">
                 <i class="ph-fill ph-leaf" style="font-size: 1.5rem; color: var(--primary);"></i>
                 <span class="header-title">Cuaderno de Campo</span>
+                <span id="cloud-sync-status" class="cloud-sync-status" title="Sincronización en la nube">
+                    <i class="ph ph-cloud-slash"></i>
+                </span>
             </div>
             <button class="header-btn" onclick="syncData()" title="Sincronizar y Clima">
                 <i class="ph ph-cloud-sun" style="font-size: 1.3rem;"></i>
@@ -356,23 +355,32 @@
                     <div class="finance-value balance" id="fin-balance" style="font-size: 1.5rem;">0.00 €</div>
                 </div>
 
-                <!-- Configuración y Backups -->
+                <!-- Sincronización Local y Seguridad -->
                 <div class="card">
-                    <span class="card-title"><i class="ph ph-gear-six"></i> Copia de Seguridad y Configuración</span>
-                    <p class="card-subtitle">Administra los datos locales de tu cuaderno de campo.</p>
+                    <span class="card-title"><i class="ph ph-arrows-clockwise"></i> Sincronización y Seguridad</span>
+                    <p class="card-subtitle">Guarda tus datos de forma permanente y automática en tu Google Drive.</p>
 
-                    <div class="info-box">
-                        <i class="ph ph-warning"></i>
-                        <span>Los datos se guardan en el navegador de forma local. Te recomendamos exportar periódicamente para no perder tu información.</span>
+                    <!-- Google Drive / Local File Sync Section -->
+                    <div id="sync-container" class="sync-panel" style="margin-bottom: 15px;">
+                        <!-- Se inyecta dinámicamente por JS (updateSyncUI) -->
                     </div>
 
-                    <div class="backup-section">
-                        <button class="btn btn-secondary" onclick="exportData()"><i class="ph ph-download-simple"></i> Exportar</button>
-                        <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()"><i class="ph ph-upload-simple"></i> Importar</button>
+                    <!-- Botón Almacenamiento Persistente -->
+                    <div class="persistence-section" id="persistence-container" style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                        <!-- Se inyecta dinámicamente por JS -->
                     </div>
-                    <input type="file" id="import-file-input" style="display: none;" onchange="importData(event)" accept=".json">
 
-                    <button class="btn btn-danger" style="margin-top: 15px;" onclick="resetAppData()"><i class="ph ph-trash"></i> Restablecer Aplicación</button>
+                    <!-- Backup Manual (Siempre visible como alternativa/seguridad) -->
+                    <div style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                        <span class="card-title" style="font-size: 0.9rem; margin-bottom: 5px;"><i class="ph ph-floppy-disk"></i> Copia de Seguridad Manual</span>
+                        <div class="backup-section">
+                            <button class="btn btn-secondary" onclick="exportData()"><i class="ph ph-download-simple"></i> Exportar</button>
+                            <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()"><i class="ph ph-upload-simple"></i> Importar</button>
+                        </div>
+                        <input type="file" id="import-file-input" style="display: none;" onchange="importData(event)" accept=".json">
+                        
+                        <button class="btn btn-danger" style="margin-top: 15px; width: 100%;" onclick="resetAppData()"><i class="ph ph-trash"></i> Restablecer Aplicación</button>
+                    </div>
                 </div>
             </section>
 
