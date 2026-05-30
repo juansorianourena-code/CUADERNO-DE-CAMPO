@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cuaderno-campo-v1';
+const CACHE_NAME = 'cuaderno-campo-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -34,19 +34,38 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// Helper para limpiar las respuestas con redirecciones en Safari
+function cleanResponse(response) {
+  if (!response || !response.redirected) {
+    return response;
+  }
+  // Reconstruye la respuesta para limpiar la metadata de redirección
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  });
+}
+
 self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Devuelve el recurso cacheado e intenta actualizar la caché en segundo plano
+        // Intenta actualizar la caché en segundo plano
         fetch(e.request).then((networkResponse) => {
           if (networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, networkResponse));
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(e.request, cleanResponse(networkResponse));
+            });
           }
         }).catch(() => {/* Ignorar errores de red */});
-        return cachedResponse;
+        
+        return cleanResponse(cachedResponse);
       }
-      return fetch(e.request);
+      
+      return fetch(e.request).then((networkResponse) => {
+        return cleanResponse(networkResponse);
+      });
     })
   );
 });
