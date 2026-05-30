@@ -56,32 +56,6 @@
 
             <!-- VIEW: ALMACÉN (Inventario) -->
             <section id="view-almacen" class="view-content">
-                <!-- Weather Widget -->
-                <div class="weather-widget" id="weather-widget" style="flex-direction: column; align-items: stretch; gap: 10px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(75, 96, 67, 0.1); padding-bottom: 6px; margin-bottom: 2px;">
-                        <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 6px;">
-                            <i class="ph-fill ph-cloud-sun" style="font-size: 1.1rem;"></i> Previsión Local
-                        </span>
-                        <select id="weather-location-select" onchange="changeWeatherLocation()" style="background: rgba(255,255,255,0.7); border: 1px solid rgba(75, 96, 67, 0.15); border-radius: 8px; font-size: 0.75rem; padding: 4px 8px; color: var(--text-primary); font-weight: 700; outline: none; cursor: pointer;">
-                            <option value="albacete">Albacete</option>
-                            <option value="fuensanta">Fuensanta (Albacete)</option>
-                        </select>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div class="weather-info">
-                            <span class="weather-temp" id="weather-temp">24°C</span>
-                            <span class="weather-status" id="weather-status">Despejado, sin viento</span>
-                            <span class="weather-advice" id="weather-advice">
-                                <i class="ph-fill ph-check-circle"></i> Condiciones óptimas para sulfatar
-                            </span>
-                        </div>
-                        <div class="weather-details">
-                            <i class="ph-fill ph-sun weather-icon-lg" id="weather-icon"></i>
-                            <span id="weather-wind">Viento: 5 km/h</span>
-                            <span id="weather-humidity">Humedad: 40%</span>
-                        </div>
-                    </div>
-                </div>
 
                 <div class="search-bar">
                     <div class="input-group" style="flex: 1; margin: 0;">
@@ -403,6 +377,33 @@
 
             <!-- VIEW: HOY (Pantalla de inicio) -->
             <section id="view-hoy" class="view-content">
+                <!-- Weather Widget -->
+                <div class="weather-widget" id="weather-widget" style="flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(75, 96, 67, 0.1); padding-bottom: 6px; margin-bottom: 2px;">
+                        <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                            <i class="ph-fill ph-cloud-sun" style="font-size: 1.1rem;"></i> Previsión Local
+                        </span>
+                        <select id="weather-location-select" onchange="changeWeatherLocation()" style="background: rgba(255,255,255,0.7); border: 1px solid rgba(75, 96, 67, 0.15); border-radius: 8px; font-size: 0.75rem; padding: 4px 8px; color: var(--text-primary); font-weight: 700; outline: none; cursor: pointer;">
+                            <option value="albacete">Albacete</option>
+                            <option value="fuensanta">Fuensanta (Albacete)</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div class="weather-info">
+                            <span class="weather-temp" id="weather-temp">24°C</span>
+                            <span class="weather-status" id="weather-status">Despejado, sin viento</span>
+                            <span class="weather-advice" id="weather-advice">
+                                <i class="ph-fill ph-check-circle"></i> Condiciones óptimas para sulfatar
+                            </span>
+                        </div>
+                        <div class="weather-details">
+                            <i class="ph-fill ph-sun weather-icon-lg" id="weather-icon"></i>
+                            <span id="weather-wind">Viento: 5 km/h</span>
+                            <span id="weather-humidity">Humedad: 40%</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Fase Lunar -->
                 <div class="card">
                     <div id="lunar-widget">
