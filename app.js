@@ -2771,18 +2771,34 @@ function renderRainfallChart(data, year, month) {
 
     let svgBars = '';
     let svgLabels = '';
+    let todayData = null;
+    let todayIndex = -1;
+
+    const currentServerDate = new Date();
+    const isCurrentMonth = (currentServerDate.getFullYear() === year && currentServerDate.getMonth() === month);
+    if (isCurrentMonth) {
+        todayIndex = currentServerDate.getDate() - 1;
+    }
+
     data.forEach((val, i) => {
         const v = val || 0;
         const barH = Math.max(v > 0 ? 4 : 0, Math.round((v / maxVal) * (chartHeight - 20)));
         const x = i * (barWidth + 3);
         const y = chartHeight - 16 - barH;
         const color = v > 10 ? '#3b82f6' : v > 3 ? '#60a5fa' : '#bfdbfe';
-        svgBars += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="2" fill="${color}" opacity="0.85"/>`;
+        
+        // Add onclick event and styling for interactivity
+        svgBars += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="2" fill="${color}" opacity="0.85" cursor="pointer" onclick="showRainfallDetail(${i + 1}, ${v.toFixed(1)}, '${monthNames[month]}', ${year})"/>`;
+        
         if ((i + 1) % 5 === 0 || i === 0 || i === data.length - 1) {
             svgLabels += `<text x="${x + barWidth / 2}" y="${chartHeight - 2}" text-anchor="middle" font-size="8" fill="#88997f">${i + 1}</text>`;
         }
         if (v > 0) {
             svgBars += `<title>Día ${i + 1}: ${v.toFixed(1)} L/m²</title>`;
+        }
+        
+        if (i === todayIndex) {
+            todayData = v;
         }
     });
 
@@ -2793,6 +2809,23 @@ function renderRainfallChart(data, year, month) {
             ${svgLabels}
         </svg>
     `;
+
+    // Initialize the selection label
+    const selectedDayEl = document.getElementById('rainfall-selected-day');
+    if (selectedDayEl) {
+        if (isCurrentMonth && todayData !== null) {
+            showRainfallDetail(todayIndex + 1, todayData.toFixed(1), monthNames[month], year);
+        } else {
+            selectedDayEl.innerHTML = 'Toca una barra para ver detalles';
+        }
+    }
+}
+
+function showRainfallDetail(day, amount, monthName, year) {
+    const selectedDayEl = document.getElementById('rainfall-selected-day');
+    if (selectedDayEl) {
+        selectedDayEl.innerHTML = `Día ${day} de ${monthName}: <span style="font-size:1.1rem; color:#3b82f6; margin-left:4px;">${amount} L/m²</span>`;
+    }
 }
 
 function prevRainfallMonth() {
