@@ -1741,7 +1741,7 @@ function saveOliveHarvest(e) {
     // Log to journal
     state.diario.push({
         id: Date.now() + 1,
-        text: `Registrada cosecha de aceituna en ${state.olivar.parcelas[parcelId]}: ${kg} Kg con un ${yieldVal}% de rendimiento (${oil} Kg de aceite).`,
+        text: `Registrada cosecha de aceituna en ${state.olivar.parcelas[parcelId]}: ${kg} Kg con un ${yieldVal}% de rendimiento (${oil} L de aceite).`,
         date: `${dateStr} ${getNowTimeString()}`,
         photo: MOCK_PHOTOS.cosecha.url
     });
@@ -1778,7 +1778,7 @@ function renderOlivarHarvestHistory() {
             </div>
             <div style="display:flex; justify-content:space-between; font-size:0.8rem; color: var(--text-secondary); margin-top:2px;">
                 <span>Rendimiento: <strong>${c.yield}%</strong></span>
-                <span>Aceite: <strong style="color:var(--text-primary);">${c.oil.toLocaleString()} Kg</strong></span>
+                <span>Aceite: <strong style="color:var(--text-primary);">${c.oil.toLocaleString()} L</strong></span>
             </div>
         `;
         listEl.appendChild(item);
@@ -3360,6 +3360,7 @@ async function generateReportPDF() {
     const includeRiego = document.getElementById('report-chk-riego').checked;
     const includeCosechas = document.getElementById('report-chk-cosechas').checked;
     const includeTratamientos = document.getElementById('report-chk-tratamientos').checked;
+    const reportTarget = document.getElementById('report-target') ? document.getElementById('report-target').value : 'all';
 
     closeModal('modal-report-config');
     showToast('Generando informe, espera un momento...', 'info');
@@ -3383,30 +3384,45 @@ async function generateReportPDF() {
     // -- COSECHAS --
     if (includeCosechas) {
         let cosechasMap = {};
-        ['huerto', 'olivar'].forEach(type => {
-            if (state[type].cosechas) {
-                Object.keys(state[type].cosechas).forEach(parcelId => {
-                    state[type].cosechas[parcelId].forEach(c => {
-                        if (isWithinRange(c.date)) {
-                            const name = state[type].parcelas[parcelId];
-                            const key = `${name} - ${c.variety}`;
-                            if (!cosechasMap[key]) cosechasMap[key] = 0;
-                            cosechasMap[key] += (parseFloat(c.amount) || 0);
-                            totalKg += (parseFloat(c.amount) || 0);
+        let typesToInclude = reportTarget === 'all' ? ['huerto', 'olivar'] : [reportTarget];
+        
+        typesToInclude.forEach(type => {
+            if (state[type].cosechas && Array.isArray(state[type].cosechas)) {
+                state[type].cosechas.forEach(c => {
+                    if (isWithinRange(c.date)) {
+                        const name = state[type].parcelas[c.parcela] || 'General';
+                        let key = '';
+                        let val = 0;
+                        if (type === 'huerto') {
+                            key = `${name} - ${c.product || c.variety}`;
+                            val = parseFloat(c.count) || 0;
+                        } else {
+                            key = `${name} - Aceituna`;
+                            val = parseFloat(c.kg) || 0;
+                            const oilKey = `${name} - Aceite estimado`;
+                            if (!cosechasMap[oilKey]) cosechasMap[oilKey] = 0;
+                            cosechasMap[oilKey] += parseFloat(c.oil) || 0;
                         }
-                    });
+                        if (!cosechasMap[key]) cosechasMap[key] = 0;
+                        cosechasMap[key] += val;
+                        totalKg += val;
+                    }
                 });
             }
         });
 
         if (Object.keys(cosechasMap).length > 0) {
-            cosechasRows = Object.keys(cosechasMap).map(key => `
+            cosechasRows = Object.keys(cosechasMap).map(key => {
+                const isOil = key.includes('Aceite');
+                const unit = isOil ? 'L' : (key.includes('Aceituna') ? 'Kg' : 'uds/Kg');
+                return `
                 <tr>
                     <td>${key.split(' - ')[0]}</td>
                     <td>${key.split(' - ')[1]}</td>
-                    <td style="text-align:right; font-weight:bold;">${cosechasMap[key].toFixed(1)} Kg</td>
+                    <td style="text-align:right; font-weight:bold;">${cosechasMap[key].toFixed(1)} ${unit}</td>
                 </tr>
-            `).join('');
+                `;
+            }).join('');
         } else {
             cosechasRows = `<tr><td colspan="3" style="text-align:center;">No hay cosechas registradas en este periodo.</td></tr>`;
         }
@@ -3415,7 +3431,8 @@ async function generateReportPDF() {
     // -- TRATAMIENTOS --
     if (includeTratamientos) {
         let allTratamientos = [];
-        ['huerto', 'olivar'].forEach(type => {
+        let typesToInclude = reportTarget === 'all' ? ['huerto', 'olivar'] : [reportTarget];
+        typesToInclude.forEach(type => {
             if (state[type].tratamientos) {
                 Object.keys(state[type].tratamientos).forEach(parcelId => {
                     state[type].tratamientos[parcelId].forEach(t => {
@@ -3448,7 +3465,8 @@ async function generateReportPDF() {
     // -- RIEGO --
     if (includeRiego) {
         let allRiegos = [];
-        ['huerto', 'olivar'].forEach(type => {
+        let typesToInclude = reportTarget === 'all' ? ['huerto', 'olivar'] : [reportTarget];
+        typesToInclude.forEach(type => {
             if (state[type].riego) {
                 Object.keys(state[type].riego).forEach(parcelId => {
                     state[type].riego[parcelId].forEach(r => {
@@ -3485,10 +3503,24 @@ async function generateReportPDF() {
     if (includeLluvias) {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
-        // Latitude and longitude default (Albacete)
+        
         let lat = 38.9942; let lon = -1.8564;
-        const loc = localStorage.getItem('weatherLocation') || 'albacete';
-        if (loc === 'fuensanta') { lat = 39.2435; lon = -2.0682; }
+        let locName = 'Albacete';
+        
+        if (reportTarget === 'olivar') {
+            lat = WEATHER_COORDINATES.fuensanta.lat;
+            lon = WEATHER_COORDINATES.fuensanta.lon;
+            locName = WEATHER_COORDINATES.fuensanta.name;
+        } else if (reportTarget === 'huerto') {
+            lat = WEATHER_COORDINATES.albacete.lat;
+            lon = WEATHER_COORDINATES.albacete.lon;
+            locName = WEATHER_COORDINATES.albacete.name;
+        } else {
+            const loc = localStorage.getItem('weatherLocation') || 'albacete';
+            lat = WEATHER_COORDINATES[loc].lat;
+            lon = WEATHER_COORDINATES[loc].lon;
+            locName = WEATHER_COORDINATES[loc].name;
+        }
 
         try {
             const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=precipitation_sum&timezone=Europe%2FMadrid`);
@@ -3524,7 +3556,7 @@ async function generateReportPDF() {
 
                         lluviaHtml += `
                             <div style="margin-bottom: 20px; page-break-inside: avoid;">
-                                <div style="font-weight: 700; color: #276749; margin-bottom: 8px;">🌧️ ${mKey.toUpperCase()} (Total: ${monthTotal.toFixed(1)} L/m²)</div>
+                                <div style="font-weight: 700; color: #276749; margin-bottom: 8px;">🌧️ ${mKey.toUpperCase()} - ${locName} (Total: ${monthTotal.toFixed(1)} L/m²)</div>
                                 <table class="report-table" style="width: 60%;">
                                     <thead><tr><th>Fecha</th><th style="text-align:right;">Precipitación</th></tr></thead>
                                     <tbody>${rows}</tbody>

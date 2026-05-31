@@ -204,7 +204,7 @@
                             </div>
                             <div class="info-box" style="background: rgba(230, 194, 98, 0.08); border-color: rgba(230, 194, 98, 0.2); color: var(--secondary); display: none;" id="olive-oil-result-box">
                                 <i class="ph-fill ph-info"></i>
-                                <span>Aceite estimado: <strong id="olive-oil-val">0</strong> Kg</span>
+                                <span>Aceite estimado: <strong id="olive-oil-val">0</strong> L</span>
                             </div>
                             <button type="submit" class="btn" style="background: var(--secondary); color: var(--bg-main);"><i class="ph ph-floppy-disk"></i> Registrar Cosecha</button>
                         </form>
@@ -910,6 +910,14 @@
                     <button class="close-sheet" onclick="closeModal('modal-report-config')"><i class="ph ph-x"></i></button>
                 </div>
                 <div style="padding: 10px 0;">
+                    <div class="input-group">
+                        <label class="input-label">Cultivo / Ubicación</label>
+                        <select id="report-target" class="form-select">
+                            <option value="all" selected>General (Ambos)</option>
+                            <option value="huerto">Solo Huerto (Albacete)</option>
+                            <option value="olivar">Solo Olivar (Fuensanta)</option>
+                        </select>
+                    </div>
                     <div class="input-group">
                         <label class="input-label">Rango de fechas</label>
                         <select id="report-range" class="form-select">
