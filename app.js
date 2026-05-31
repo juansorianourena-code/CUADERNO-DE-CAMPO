@@ -3979,24 +3979,62 @@ async function generateReportPDF() {
                         const days = monthGroups[mKey];
                         const monthTotal = days.reduce((acc, d) => acc + d.precip, 0);
                         
-                        let rows = days.map(d => `
-                            <div class="rain-day-item" style="display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 4px 0;">
-                                <div class="rain-day-date" style="font-weight: bold;">${d.date.split('-').slice(1).reverse().join('/')}</div>
-                                <div style="display: flex; gap: 15px;">
-                                    <div class="rain-day-temp" style="color: #f97316;">↑${d.tmax !== null && d.tmax !== undefined ? d.tmax.toFixed(1) : '-'}°</div>
-                                    <div class="rain-day-temp" style="color: #3b82f6;">↓${d.tmin !== null && d.tmin !== undefined ? d.tmin.toFixed(1) : '-'}°</div>
-                                    <div class="rain-day-val" style="color: ${d.precip > 0 ? '#0ea5e9' : '#999'}; width: 45px; text-align: right;">${d.precip.toFixed(1)} L</div>
-                                </div>
+                        // Encontrar mes y año
+                        const sampleDate = new Date(days[0].date);
+                        const year = sampleDate.getFullYear();
+                        const month = sampleDate.getMonth();
+                        
+                        // Días en el mes y día de inicio (Lunes = 1, Domingo = 7 adaptado)
+                        const daysInMonth = new Date(year, month + 1, 0).getDate();
+                        const firstDay = new Date(year, month, 1).getDay();
+                        const emptyCellsCount = firstDay === 0 ? 6 : firstDay - 1;
+                        
+                        // Cabecera de días de la semana
+                        let calendarHtml = `
+                            <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font-weight: bold; font-size: 0.75rem; margin-bottom: 4px; color: #666;">
+                                <div>L</div><div>M</div><div>X</div><div>J</div><div>V</div><div>S</div><div>D</div>
                             </div>
-                        `).join('');
-
+                            <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;">
+                        `;
+                        
+                        // Celdas vacías iniciales
+                        for (let i = 0; i < emptyCellsCount; i++) {
+                            calendarHtml += `<div style="padding: 4px; background: transparent; border: 1px solid transparent;"></div>`;
+                        }
+                        
+                        // Días del mes
+                        for (let i = 1; i <= daysInMonth; i++) {
+                            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                            const d = days.find(day => day.date === dateStr);
+                            
+                            if (d) {
+                                calendarHtml += `
+                                    <div style="padding: 4px; border: 1px solid #ddd; background: ${d.precip > 0 ? '#f0f9ff' : '#fff'}; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 4px;">
+                                        <div style="font-weight: bold; font-size: 0.8rem; margin-bottom: 2px; color: #333;">${i}</div>
+                                        <div style="font-size: 0.65rem; color: #f97316;">↑${d.tmax !== null && d.tmax !== undefined ? d.tmax.toFixed(1) : '-'}°</div>
+                                        <div style="font-size: 0.65rem; color: #3b82f6;">↓${d.tmin !== null && d.tmin !== undefined ? d.tmin.toFixed(1) : '-'}°</div>
+                                        <div style="font-size: 0.65rem; font-weight: bold; color: ${d.precip > 0 ? '#0ea5e9' : '#aaa'}; margin-top: 2px;">${d.precip > 0 ? d.precip.toFixed(1) + ' L' : '0 L'}</div>
+                                    </div>
+                                `;
+                            } else {
+                                calendarHtml += `
+                                    <div style="padding: 4px; border: 1px solid #eee; background: #fafafa; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 4px; opacity: 0.5;">
+                                        <div style="font-weight: bold; font-size: 0.8rem; margin-bottom: 2px; color: #999;">${i}</div>
+                                        <div style="font-size: 0.65rem; color: transparent;">-</div>
+                                    </div>
+                                `;
+                            }
+                        }
+                        
+                        calendarHtml += `</div>`; // Cerrar grid
+                        
                         lluviaHtml += `
-                            <div class="rain-month-block" style="margin-bottom: 20px; break-inside: avoid;">
-                                <div class="rain-month-title" style="background: #f4f6f3; padding: 8px; font-weight: bold; display: flex; justify-content: space-between; border-radius: 4px;">
+                            <div class="rain-month-block" style="margin-bottom: 24px; break-inside: avoid; page-break-inside: avoid;">
+                                <div class="rain-month-title" style="background: #f4f6f3; padding: 8px 12px; font-weight: bold; display: flex; justify-content: space-between; border-radius: 6px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
                                     <span>🌡️🌧️ ${mKey} - ${locName}</span>
                                     <span>Lluvia Total: ${monthTotal.toFixed(1)} L/m²</span>
                                 </div>
-                                <div class="rain-days-grid" style="display: flex; flex-direction: column; padding: 0 5px;">${rows}</div>
+                                ${calendarHtml}
                             </div>
                         `;
                     });
