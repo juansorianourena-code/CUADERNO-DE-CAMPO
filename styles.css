@@ -1202,3 +1202,125 @@ body {
     font-weight: 700;
     color: var(--text-primary);
 }
+
+/* =========================================================
+   REPORT PRINTING (PDF GENERATOR)
+   ========================================================= */
+@media print {
+    /* Hide everything by default in print mode */
+    body * {
+        visibility: hidden;
+    }
+    
+    /* Only show the print-report container and its children */
+    #print-report, #print-report * {
+        visibility: visible;
+    }
+
+    #print-report {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white;
+        color: black;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+
+    @page {
+        margin: 20mm 15mm;
+        size: A4;
+    }
+
+    /* Professional Report Typography */
+    .report-title {
+        font-size: 24pt;
+        font-weight: 800;
+        color: #1a202c;
+        border-bottom: 3px solid #2f855a;
+        padding-bottom: 8px;
+        margin-bottom: 20px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .report-subtitle {
+        font-size: 14pt;
+        font-weight: 600;
+        color: #4a5568;
+        margin-bottom: 30px;
+    }
+
+    .report-section {
+        margin-top: 30px;
+        page-break-inside: avoid;
+    }
+
+    .report-section-title {
+        font-size: 16pt;
+        font-weight: 700;
+        color: #276749;
+        border-bottom: 1px solid #cbd5e0;
+        padding-bottom: 4px;
+        margin-bottom: 12px;
+    }
+
+    /* Tables */
+    .report-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 15px;
+        font-size: 10pt;
+    }
+
+    .report-table th, .report-table td {
+        border: 1px solid #cbd5e0;
+        padding: 8px 10px;
+        text-align: left;
+    }
+
+    .report-table th {
+        background-color: #f7fafc;
+        color: #2d3748;
+        font-weight: 700;
+    }
+
+    .report-table tr:nth-child(even) {
+        background-color: #fcfcfc;
+    }
+
+    /* Avoid page breaks inside rows */
+    .report-table tr {
+        page-break-inside: avoid;
+    }
+
+    /* KPIs */
+    .report-kpi-grid {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+        page-break-inside: avoid;
+    }
+
+    .report-kpi-box {
+        flex: 1;
+        border: 1px solid #cbd5e0;
+        border-radius: 4px;
+        padding: 12px;
+        text-align: center;
+        background: #f7fafc;
+    }
+
+    .report-kpi-value {
+        font-size: 18pt;
+        font-weight: 800;
+        color: #2f855a;
+    }
+
+    .report-kpi-label {
+        font-size: 9pt;
+        color: #4a5568;
+        text-transform: uppercase;
+        margin-top: 4px;
+    }
+}

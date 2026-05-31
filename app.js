@@ -2481,15 +2481,18 @@ function renderRiego(type, parcelId) {
     } else {
         lastThree.forEach(r => {
             html += `
-                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(76,201,240,0.05); border:1px solid rgba(76,201,240,0.15); border-radius:10px; padding:8px 12px; margin-bottom:6px;">
-                    <div>
-                        <span style="font-size:0.8rem; font-weight:700; color:var(--text-primary);">${r.method}</span>
-                        <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">${r.date}</span>
+                <div style="display:flex; flex-direction:column; background:rgba(76,201,240,0.05); border:1px solid rgba(76,201,240,0.15); border-radius:10px; padding:8px 12px; margin-bottom:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <span style="font-size:0.8rem; font-weight:700; color:var(--text-primary);">${r.method}</span>
+                            <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">${r.date}</span>
+                        </div>
+                        <div style="text-align:right;">
+                            <span style="font-size:0.85rem; font-weight:800; color:#3b82f6;">${r.liters} L</span>
+                            <span style="font-size:0.75rem; color:var(--text-muted); display:block;">⏱ ${r.minutes}</span>
+                        </div>
                     </div>
-                    <div style="text-align:right;">
-                        <span style="font-size:0.8rem; font-weight:700; color:#3b82f6;">${r.liters} L</span>
-                        <span style="font-size:0.72rem; color:var(--text-muted); display:block;">${r.minutes} min</span>
-                    </div>
+                    ${r.notes ? `<div style="font-size:0.75rem; color:var(--text-primary); margin-top:6px; background:rgba(255,255,255,0.5); padding:4px 8px; border-radius:4px; font-style:italic;">💬 ${r.notes}</div>` : ''}
                 </div>
             `;
         });
@@ -2504,6 +2507,7 @@ function openAddRiegoModal(type, parcelId) {
     document.getElementById('riego-minutes').value = '';
     document.getElementById('riego-liters').value = '';
     document.getElementById('riego-method').value = 'Goteo';
+    document.getElementById('riego-notes').value = '';
     openModal('modal-add-riego');
 }
 
@@ -2512,17 +2516,22 @@ function saveRiego(e) {
     const type = document.getElementById('riego-type').value;
     const parcelId = document.getElementById('riego-parcela').value;
     const date = document.getElementById('riego-date').value;
-    const minutes = parseFloat(document.getElementById('riego-minutes').value) || 0;
+    const minutes = document.getElementById('riego-minutes').value || '0 min';
     const liters = parseFloat(document.getElementById('riego-liters').value) || 0;
     const method = document.getElementById('riego-method').value;
+    const notes = document.getElementById('riego-notes').value.trim();
 
     if (!state[type].riego) state[type].riego = {};
     if (!state[type].riego[parcelId]) state[type].riego[parcelId] = [];
 
-    state[type].riego[parcelId].push({ id: Date.now(), date, minutes, liters, method });
+    state[type].riego[parcelId].push({ id: Date.now(), date, minutes, liters, method, notes });
+    
+    let diarioText = `Riego en ${state[type].parcelas[parcelId]}: ${liters}L por ${method.toLowerCase()} (Tiempo: ${minutes}).`;
+    if (notes) diarioText += ` Observaciones: ${notes}`;
+
     state.diario.push({
         id: Date.now() + 1,
-        text: `Riego en ${state[type].parcelas[parcelId]}: ${liters}L por ${method.toLowerCase()} durante ${minutes} minutos.`,
+        text: diarioText,
         date: `${date} ${getNowTimeString()}`,
         photo: null
     });
@@ -3340,4 +3349,301 @@ async function forceReloadApp() {
     }
     // Añadimos un timestamp aleatorio para evitar caché de navegador
     window.location.href = window.location.href.split('?')[0] + '?reload=' + new Date().getTime();
+}
+
+// ============================================================
+// --- GENERACIÓN DE INFORME PDF ---
+// ============================================================
+async function generateReportPDF() {
+    const rangeMonths = parseInt(document.getElementById('report-range').value) || 3;
+    const includeLluvias = document.getElementById('report-chk-lluvias').checked;
+    const includeRiego = document.getElementById('report-chk-riego').checked;
+    const includeCosechas = document.getElementById('report-chk-cosechas').checked;
+    const includeTratamientos = document.getElementById('report-chk-tratamientos').checked;
+
+    closeModal('modal-report-config');
+    showToast('Generando informe, espera un momento...', 'info');
+
+    // Fechas
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - rangeMonths);
+    
+    // Función auxiliar para filtrar por fecha (Y-m-d)
+    const isWithinRange = (dateString) => {
+        const d = new Date(dateString);
+        return d >= startDate && d <= endDate;
+    };
+
+    let totalKg = 0;
+    let tratamientosRows = '';
+    let riegoRows = '';
+    let cosechasRows = '';
+
+    // -- COSECHAS --
+    if (includeCosechas) {
+        let cosechasMap = {};
+        ['huerto', 'olivar'].forEach(type => {
+            if (state[type].cosechas) {
+                Object.keys(state[type].cosechas).forEach(parcelId => {
+                    state[type].cosechas[parcelId].forEach(c => {
+                        if (isWithinRange(c.date)) {
+                            const name = state[type].parcelas[parcelId];
+                            const key = `${name} - ${c.variety}`;
+                            if (!cosechasMap[key]) cosechasMap[key] = 0;
+                            cosechasMap[key] += (parseFloat(c.amount) || 0);
+                            totalKg += (parseFloat(c.amount) || 0);
+                        }
+                    });
+                });
+            }
+        });
+
+        if (Object.keys(cosechasMap).length > 0) {
+            cosechasRows = Object.keys(cosechasMap).map(key => `
+                <tr>
+                    <td>${key.split(' - ')[0]}</td>
+                    <td>${key.split(' - ')[1]}</td>
+                    <td style="text-align:right; font-weight:bold;">${cosechasMap[key].toFixed(1)} Kg</td>
+                </tr>
+            `).join('');
+        } else {
+            cosechasRows = `<tr><td colspan="3" style="text-align:center;">No hay cosechas registradas en este periodo.</td></tr>`;
+        }
+    }
+
+    // -- TRATAMIENTOS --
+    if (includeTratamientos) {
+        let allTratamientos = [];
+        ['huerto', 'olivar'].forEach(type => {
+            if (state[type].tratamientos) {
+                Object.keys(state[type].tratamientos).forEach(parcelId => {
+                    state[type].tratamientos[parcelId].forEach(t => {
+                        if (isWithinRange(t.date)) {
+                            allTratamientos.push({
+                                type, parcelId, name: state[type].parcelas[parcelId], ...t
+                            });
+                        }
+                    });
+                });
+            }
+        });
+        allTratamientos.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+        if (allTratamientos.length > 0) {
+            tratamientosRows = allTratamientos.map(t => `
+                <tr>
+                    <td>${t.date}</td>
+                    <td>${t.name}</td>
+                    <td>${t.product}</td>
+                    <td>${t.dose}</td>
+                    <td>${t.plague || 'Prevención / Abono'}</td>
+                </tr>
+            `).join('');
+        } else {
+            tratamientosRows = `<tr><td colspan="5" style="text-align:center;">No hay tratamientos registrados en este periodo.</td></tr>`;
+        }
+    }
+
+    // -- RIEGO --
+    if (includeRiego) {
+        let allRiegos = [];
+        ['huerto', 'olivar'].forEach(type => {
+            if (state[type].riego) {
+                Object.keys(state[type].riego).forEach(parcelId => {
+                    state[type].riego[parcelId].forEach(r => {
+                        if (isWithinRange(r.date)) {
+                            allRiegos.push({
+                                type, parcelId, name: state[type].parcelas[parcelId], ...r
+                            });
+                        }
+                    });
+                });
+            }
+        });
+        allRiegos.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+        if (allRiegos.length > 0) {
+            riegoRows = allRiegos.map(r => `
+                <tr>
+                    <td>${r.date}</td>
+                    <td>${r.name}</td>
+                    <td>${r.method}</td>
+                    <td>${r.minutes}</td>
+                    <td>${r.liters} L</td>
+                    <td>${r.notes || '-'}</td>
+                </tr>
+            `).join('');
+        } else {
+            riegoRows = `<tr><td colspan="6" style="text-align:center;">No hay riegos registrados en este periodo.</td></tr>`;
+        }
+    }
+
+    // -- LLUVIAS (OPEN-METEO) --
+    let lluviaHtml = '';
+    let totalLluvia = 0;
+    if (includeLluvias) {
+        const startStr = startDate.toISOString().split('T')[0];
+        const endStr = endDate.toISOString().split('T')[0];
+        // Latitude and longitude default (Albacete)
+        let lat = 38.9942; let lon = -1.8564;
+        const loc = localStorage.getItem('weatherLocation') || 'albacete';
+        if (loc === 'fuensanta') { lat = 39.2435; lon = -2.0682; }
+
+        try {
+            const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=precipitation_sum&timezone=Europe%2FMadrid`);
+            if (res.ok) {
+                const data = await res.json();
+                const daily = data.daily;
+                
+                if (daily && daily.time) {
+                    // Agrupar por mes
+                    let monthGroups = {};
+                    daily.time.forEach((dateStr, idx) => {
+                        const val = daily.precipitation_sum[idx] || 0;
+                        if (val > 0) {
+                            totalLluvia += val;
+                            const d = new Date(dateStr);
+                            const monthKey = \`\${d.toLocaleString('es-ES', {month:'long'})} \${d.getFullYear()}\`;
+                            if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
+                            monthGroups[monthKey].push({ date: dateStr, val });
+                        }
+                    });
+
+                    // Generar tablas por mes
+                    Object.keys(monthGroups).forEach(mKey => {
+                        const days = monthGroups[mKey];
+                        const monthTotal = days.reduce((acc, d) => acc + d.val, 0);
+                        
+                        let rows = days.map(d => \`
+                            <tr>
+                                <td>\${d.date}</td>
+                                <td style="text-align:right; font-weight:bold; color:#2f855a;">\${d.val.toFixed(1)} L/m²</td>
+                            </tr>
+                        \`).join('');
+
+                        lluviaHtml += \`
+                            <div style="margin-bottom: 20px; page-break-inside: avoid;">
+                                <div style="font-weight: 700; color: #276749; margin-bottom: 8px;">🌧️ \${mKey.toUpperCase()} (Total: \${monthTotal.toFixed(1)} L/m²)</div>
+                                <table class="report-table" style="width: 60%;">
+                                    <thead><tr><th>Fecha</th><th style="text-align:right;">Precipitación</th></tr></thead>
+                                    <tbody>\${rows}</tbody>
+                                </table>
+                            </div>
+                        \`;
+                    });
+
+                    if (!lluviaHtml) {
+                        lluviaHtml = \`<p>No se han registrado precipitaciones mayores a 0 en el periodo seleccionado.</p>\`;
+                    }
+                }
+            }
+        } catch(e) {
+            console.error("Error fetching rainfall for report:", e);
+            lluviaHtml = \`<p style="color:red;">Error al descargar datos de lluvia de Open-Meteo.</p>\`;
+        }
+    }
+
+    // CONSTRUIR HTML DEL INFORME
+    const dateRangeStr = \`\${startDate.toLocaleDateString('es-ES')} - \${endDate.toLocaleDateString('es-ES')}\`;
+    
+    let reportHtml = \`
+        <div class="report-title">Cuaderno de Explotación</div>
+        <div class="report-subtitle">Período Analizado: \${dateRangeStr}</div>
+
+        <div class="report-kpi-grid">
+            \${includeLluvias ? \`
+            <div class="report-kpi-box">
+                <div class="report-kpi-value">\${totalLluvia.toFixed(1)} L/m²</div>
+                <div class="report-kpi-label">Precipitación Total</div>
+            </div>\` : ''}
+            \${includeCosechas ? \`
+            <div class="report-kpi-box">
+                <div class="report-kpi-value">\${totalKg.toFixed(1)} Kg</div>
+                <div class="report-kpi-label">Producción Total</div>
+            </div>\` : ''}
+            <div class="report-kpi-box">
+                <div class="report-kpi-value">\${endDate.toLocaleDateString('es-ES')}</div>
+                <div class="report-kpi-label">Fecha de Emisión</div>
+            </div>
+        </div>
+    \`;
+
+    if (includeTratamientos) {
+        reportHtml += \`
+            <div class="report-section">
+                <div class="report-section-title">Registro Fitosanitario y Fertilización</div>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Parcela</th>
+                            <th>Producto</th>
+                            <th>Dosis</th>
+                            <th>Motivo / Plaga</th>
+                        </tr>
+                    </thead>
+                    <tbody>\${tratamientosRows}</tbody>
+                </table>
+            </div>
+        \`;
+    }
+
+    if (includeRiego) {
+        reportHtml += \`
+            <div class="report-section">
+                <div class="report-section-title">Control y Novedades de Riego</div>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Parcela</th>
+                            <th>Método</th>
+                            <th>Tiempo</th>
+                            <th>Cantidad</th>
+                            <th>Observaciones / Cambios</th>
+                        </tr>
+                    </thead>
+                    <tbody>\${riegoRows}</tbody>
+                </table>
+            </div>
+        \`;
+    }
+
+    if (includeCosechas) {
+        reportHtml += \`
+            <div class="report-section">
+                <div class="report-section-title">Resumen de Producción y Cosecha</div>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Parcela</th>
+                            <th>Variedad</th>
+                            <th style="text-align:right;">Cantidad Recogida</th>
+                        </tr>
+                    </thead>
+                    <tbody>\${cosechasRows}</tbody>
+                </table>
+            </div>
+        \`;
+    }
+
+    if (includeLluvias) {
+        reportHtml += \`
+            <div class="report-section">
+                <div class="report-section-title">Parte Meteorológico (Detalle Diario)</div>
+                \${lluviaHtml}
+            </div>
+        \`;
+    }
+
+    const printContainer = document.getElementById('print-report');
+    printContainer.innerHTML = reportHtml;
+
+    // Retrasar la impresión un momento para que el navegador renderice el HTML
+    setTimeout(() => {
+        window.print();
+        // Borramos el contenido para que no consuma memoria al cerrar
+        setTimeout(() => printContainer.innerHTML = '', 1000);
+    }, 600);
 }

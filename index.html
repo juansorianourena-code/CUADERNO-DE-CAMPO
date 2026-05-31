@@ -647,6 +647,10 @@
                         <i class="ph ph-chart-bar"></i>
                         <span>Datos y Ajustes</span>
                     </div>
+                    <div class="grid-item" style="grid-column: span 2; background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.2);" onclick="toggleMainMenu(); openModal('modal-report-config');">
+                        <i class="ph ph-file-pdf" style="color: #3b82f6;"></i>
+                        <span style="color: #3b82f6; font-weight: bold;">Generar Informe PDF</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -676,13 +680,17 @@
                     </div>
                     <div class="inline-fields">
                         <div class="input-group">
-                            <label class="input-label" for="riego-liters">Litros totales</label>
+                            <label class="input-label" for="riego-liters">Agua (L o m³)</label>
                             <input type="number" id="riego-liters" class="form-input" placeholder="Ej: 50" required>
                         </div>
                         <div class="input-group">
-                            <label class="input-label" for="riego-minutes">Minutos</label>
-                            <input type="number" id="riego-minutes" class="form-input" placeholder="Ej: 45" required>
+                            <label class="input-label" for="riego-minutes">Tiempo (Min/Horas)</label>
+                            <input type="text" id="riego-minutes" class="form-input" placeholder="Ej: 45 min o 2 horas" required>
                         </div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="riego-notes">Observaciones / Cambios</label>
+                        <textarea id="riego-notes" class="form-input" placeholder="Apunta aquí si cambiaste mangueras, si el goteo falló..." rows="2"></textarea>
                     </div>
                     <button type="submit" class="btn"><i class="ph ph-drop"></i> Guardar Riego</button>
                 </form>
@@ -894,6 +902,50 @@
             </div>
         </div>
 
+        <!-- MODAL: REPORT CONFIG -->
+        <div id="modal-report-config" class="action-sheet-overlay" onclick="closeModal('modal-report-config')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title">Configurar Informe PDF</span>
+                    <button class="close-sheet" onclick="closeModal('modal-report-config')"><i class="ph ph-x"></i></button>
+                </div>
+                <div style="padding: 10px 0;">
+                    <div class="input-group">
+                        <label class="input-label">Rango de fechas</label>
+                        <select id="report-range" class="form-select">
+                            <option value="1">Último Mes</option>
+                            <option value="3" selected>Últimos 3 Meses</option>
+                            <option value="6">Últimos 6 Meses</option>
+                            <option value="12">Último Año</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Contenido a incluir</label>
+                        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                                <input type="checkbox" id="report-chk-lluvias" checked style="width: 18px; height: 18px;"> Parte Meteorológico (Lluvias)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                                <input type="checkbox" id="report-chk-riego" checked style="width: 18px; height: 18px;"> Control de Riego
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                                <input type="checkbox" id="report-chk-cosechas" checked style="width: 18px; height: 18px;"> Producción y Cosechas
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                                <input type="checkbox" id="report-chk-tratamientos" checked style="width: 18px; height: 18px;"> Tratamientos (Trazabilidad)
+                            </label>
+                        </div>
+                    </div>
+                    <button class="btn" onclick="generateReportPDF()"><i class="ph ph-file-pdf"></i> Generar PDF e Imprimir</button>
+                </div>
+            </div>
+        </div>
+
+    </div> <!-- app-container end -->
+
+    <!-- CONTENEDOR OCULTO PARA IMPRIMIR PDF -->
+    <div id="print-report">
+        <!-- Generado dinámicamente -->
     </div>
 
     <!-- Script de lógica de la aplicación -->
