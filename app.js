@@ -3702,8 +3702,9 @@ function exportToPDF() {
     const printContent = `
         <html><head>
         <title>Cuaderno de Campo — Informe ${today}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
         <style>
-            body { font-family: Arial, sans-serif; font-size: 12px; color: #283321; padding: 20px; }
+            body { font-family: 'Montserrat', Arial, sans-serif; font-size: 12px; color: #283321; padding: 20px; }
             h1 { color: #4b6043; border-bottom: 2px solid #4b6043; padding-bottom: 8px; }
             h2 { color: #4b6043; margin-top: 24px; font-size: 14px; }
             table { width: 100%; border-collapse: collapse; margin-top: 8px; }
