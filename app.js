@@ -3697,7 +3697,5 @@ async function generateReportPDF() {
     // Retrasar la impresión un momento para que el navegador renderice el HTML
     setTimeout(() => {
         window.print();
-        // Borramos el contenido para que no consuma memoria al cerrar
-        setTimeout(() => printContainer.innerHTML = '', 1000);
     }, 600);
 }
