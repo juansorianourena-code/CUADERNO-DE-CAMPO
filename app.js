@@ -3504,7 +3504,7 @@ async function generateReportPDF() {
                         if (val > 0) {
                             totalLluvia += val;
                             const d = new Date(dateStr);
-                            const monthKey = \`\${d.toLocaleString('es-ES', {month:'long'})} \${d.getFullYear()}\`;
+                            const monthKey = `${d.toLocaleString('es-ES', {month:'long'})} ${d.getFullYear()}`;
                             if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
                             monthGroups[monthKey].push({ date: dateStr, val });
                         }
@@ -3515,62 +3515,62 @@ async function generateReportPDF() {
                         const days = monthGroups[mKey];
                         const monthTotal = days.reduce((acc, d) => acc + d.val, 0);
                         
-                        let rows = days.map(d => \`
+                        let rows = days.map(d => `
                             <tr>
-                                <td>\${d.date}</td>
-                                <td style="text-align:right; font-weight:bold; color:#2f855a;">\${d.val.toFixed(1)} L/m²</td>
+                                <td>${d.date}</td>
+                                <td style="text-align:right; font-weight:bold; color:#2f855a;">${d.val.toFixed(1)} L/m²</td>
                             </tr>
-                        \`).join('');
+                        `).join('');
 
-                        lluviaHtml += \`
+                        lluviaHtml += `
                             <div style="margin-bottom: 20px; page-break-inside: avoid;">
-                                <div style="font-weight: 700; color: #276749; margin-bottom: 8px;">🌧️ \${mKey.toUpperCase()} (Total: \${monthTotal.toFixed(1)} L/m²)</div>
+                                <div style="font-weight: 700; color: #276749; margin-bottom: 8px;">🌧️ ${mKey.toUpperCase()} (Total: ${monthTotal.toFixed(1)} L/m²)</div>
                                 <table class="report-table" style="width: 60%;">
                                     <thead><tr><th>Fecha</th><th style="text-align:right;">Precipitación</th></tr></thead>
-                                    <tbody>\${rows}</tbody>
+                                    <tbody>${rows}</tbody>
                                 </table>
                             </div>
-                        \`;
+                        `;
                     });
 
                     if (!lluviaHtml) {
-                        lluviaHtml = \`<p>No se han registrado precipitaciones mayores a 0 en el periodo seleccionado.</p>\`;
+                        lluviaHtml = `<p>No se han registrado precipitaciones mayores a 0 en el periodo seleccionado.</p>`;
                     }
                 }
             }
         } catch(e) {
             console.error("Error fetching rainfall for report:", e);
-            lluviaHtml = \`<p style="color:red;">Error al descargar datos de lluvia de Open-Meteo.</p>\`;
+            lluviaHtml = `<p style="color:red;">Error al descargar datos de lluvia de Open-Meteo.</p>`;
         }
     }
 
     // CONSTRUIR HTML DEL INFORME
-    const dateRangeStr = \`\${startDate.toLocaleDateString('es-ES')} - \${endDate.toLocaleDateString('es-ES')}\`;
+    const dateRangeStr = `${startDate.toLocaleDateString('es-ES')} - ${endDate.toLocaleDateString('es-ES')}`;
     
-    let reportHtml = \`
+    let reportHtml = `
         <div class="report-title">Cuaderno de Explotación</div>
-        <div class="report-subtitle">Período Analizado: \${dateRangeStr}</div>
+        <div class="report-subtitle">Período Analizado: ${dateRangeStr}</div>
 
         <div class="report-kpi-grid">
-            \${includeLluvias ? \`
+            ${includeLluvias ? `
             <div class="report-kpi-box">
-                <div class="report-kpi-value">\${totalLluvia.toFixed(1)} L/m²</div>
+                <div class="report-kpi-value">${totalLluvia.toFixed(1)} L/m²</div>
                 <div class="report-kpi-label">Precipitación Total</div>
-            </div>\` : ''}
-            \${includeCosechas ? \`
+            </div>` : ''}
+            ${includeCosechas ? `
             <div class="report-kpi-box">
-                <div class="report-kpi-value">\${totalKg.toFixed(1)} Kg</div>
+                <div class="report-kpi-value">${totalKg.toFixed(1)} Kg</div>
                 <div class="report-kpi-label">Producción Total</div>
-            </div>\` : ''}
+            </div>` : ''}
             <div class="report-kpi-box">
-                <div class="report-kpi-value">\${endDate.toLocaleDateString('es-ES')}</div>
+                <div class="report-kpi-value">${endDate.toLocaleDateString('es-ES')}</div>
                 <div class="report-kpi-label">Fecha de Emisión</div>
             </div>
         </div>
-    \`;
+    `;
 
     if (includeTratamientos) {
-        reportHtml += \`
+        reportHtml += `
             <div class="report-section">
                 <div class="report-section-title">Registro Fitosanitario y Fertilización</div>
                 <table class="report-table">
@@ -3583,14 +3583,14 @@ async function generateReportPDF() {
                             <th>Motivo / Plaga</th>
                         </tr>
                     </thead>
-                    <tbody>\${tratamientosRows}</tbody>
+                    <tbody>${tratamientosRows}</tbody>
                 </table>
             </div>
-        \`;
+        `;
     }
 
     if (includeRiego) {
-        reportHtml += \`
+        reportHtml += `
             <div class="report-section">
                 <div class="report-section-title">Control y Novedades de Riego</div>
                 <table class="report-table">
@@ -3604,14 +3604,14 @@ async function generateReportPDF() {
                             <th>Observaciones / Cambios</th>
                         </tr>
                     </thead>
-                    <tbody>\${riegoRows}</tbody>
+                    <tbody>${riegoRows}</tbody>
                 </table>
             </div>
-        \`;
+        `;
     }
 
     if (includeCosechas) {
-        reportHtml += \`
+        reportHtml += `
             <div class="report-section">
                 <div class="report-section-title">Resumen de Producción y Cosecha</div>
                 <table class="report-table">
@@ -3622,19 +3622,19 @@ async function generateReportPDF() {
                             <th style="text-align:right;">Cantidad Recogida</th>
                         </tr>
                     </thead>
-                    <tbody>\${cosechasRows}</tbody>
+                    <tbody>${cosechasRows}</tbody>
                 </table>
             </div>
-        \`;
+        `;
     }
 
     if (includeLluvias) {
-        reportHtml += \`
+        reportHtml += `
             <div class="report-section">
                 <div class="report-section-title">Parte Meteorológico (Detalle Diario)</div>
-                \${lluviaHtml}
+                ${lluviaHtml}
             </div>
-        \`;
+        `;
     }
 
     const printContainer = document.getElementById('print-report');

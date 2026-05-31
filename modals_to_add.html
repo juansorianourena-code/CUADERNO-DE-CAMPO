@@ -1,0 +1,69 @@
+        <!-- MODAL: ADD RIEGO -->
+        <div id="modal-add-riego" class="action-sheet-overlay" onclick="closeModal('modal-add-riego')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title">Registrar Riego</span>
+                    <button class="close-sheet" onclick="closeModal('modal-add-riego')"><i class="ph ph-x"></i></button>
+                </div>
+                <form onsubmit="saveRiego(event)">
+                    <input type="hidden" id="riego-type">
+                    <div class="input-group">
+                        <label class="input-label" for="riego-duration">Duración / Cantidad</label>
+                        <input type="text" id="riego-duration" class="form-input" placeholder="Ej: 2 horas, 15 L/planta" required autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="riego-notes">Notas (Opcional)</label>
+                        <input type="text" id="riego-notes" class="form-input" placeholder="Ej: Con abono líquido, sector 1" autocomplete="off">
+                    </div>
+                    <button type="submit" class="btn"><i class="ph ph-drop"></i> Guardar Riego</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL: ADD FERTILIZACION -->
+        <div id="modal-add-fertilizacion" class="action-sheet-overlay" onclick="closeModal('modal-add-fertilizacion')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title">Programar Fertilización</span>
+                    <button class="close-sheet" onclick="closeModal('modal-add-fertilizacion')"><i class="ph ph-x"></i></button>
+                </div>
+                <form onsubmit="saveFertilizacion(event)">
+                    <input type="hidden" id="fertilizacion-type">
+                    <div class="input-group">
+                        <label class="input-label" for="fert-product">Producto / Abono</label>
+                        <input type="text" id="fert-product" class="form-input" placeholder="Ej: NPK 15-15-15, Estiércol" required autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="fert-date">Fecha Programada</label>
+                        <input type="date" id="fert-date" class="form-input" required>
+                    </div>
+                    <button type="submit" class="btn"><i class="ph ph-plant"></i> Programar</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL: ADD PLAGA -->
+        <div id="modal-add-plaga" class="action-sheet-overlay" onclick="closeModal('modal-add-plaga')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title">Alerta de Plaga</span>
+                    <button class="close-sheet" onclick="closeModal('modal-add-plaga')"><i class="ph ph-x"></i></button>
+                </div>
+                <form onsubmit="savePlaga(event)">
+                    <input type="hidden" id="plaga-type">
+                    <div class="input-group">
+                        <label class="input-label" for="plaga-name">Nombre / Síntoma</label>
+                        <input type="text" id="plaga-name" class="form-input" placeholder="Ej: Pulgón, Hojas amarillas" required autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="plaga-severity">Gravedad</label>
+                        <select id="plaga-severity" class="form-select">
+                            <option value="Baja">Baja</option>
+                            <option value="Media">Media</option>
+                            <option value="Alta">Alta</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn danger-accent"><i class="ph ph-bug"></i> Registrar Alerta</button>
+                </form>
+            </div>
+        </div>

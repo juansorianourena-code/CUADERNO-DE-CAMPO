@@ -1,9 +1,9 @@
-const CACHE_NAME = 'cuaderno-campo-v16';
+const CACHE_NAME = 'cuaderno-campo-v17';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
-  './app.js',
+  './app.js?v=17',
   './manifest.json',
   './icon.png',
   './icon-512.png',
