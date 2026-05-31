@@ -402,6 +402,16 @@
                             <span id="weather-humidity">Humedad: 40%</span>
                         </div>
                     </div>
+                    
+                    <!-- Alertas y Propagación de Incendios -->
+                    <div id="weather-alerts-container" style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px; border-top: 1px solid rgba(75, 96, 67, 0.1); padding-top: 8px;">
+                        <span id="weather-fire-index" style="font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                            <i class="ph-fill ph-fire" id="fire-icon"></i> Índice Propagación Incendio: <span id="fire-index-text" style="font-weight: 800;">-</span>
+                        </span>
+                        <span id="weather-extreme-alerts" style="font-size: 0.8rem; font-weight: 600; display: none; align-items: center; gap: 4px; color: var(--danger);">
+                            <i class="ph-fill ph-warning-octagon"></i> <span id="weather-extreme-text"></span>
+                        </span>
+                    </div>
                 </div>
 
                 <!-- Lluvia / Clima -->

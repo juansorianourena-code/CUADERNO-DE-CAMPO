@@ -815,6 +815,51 @@ function renderWeather() {
         iconEl.className = "ph-fill ph-cloud-rain weather-icon-lg";
         iconEl.style.color = "var(--text-muted)";
     }
+
+    // Calcular Índice de Propagación de Incendios
+    const fireIndexText = document.getElementById('fire-index-text');
+    const fireIcon = document.getElementById('fire-icon');
+    let fireRisk = "Bajo";
+    let fireColor = "#22c55e"; // Green
+
+    if (weatherState.temp >= 30 && weatherState.humidity <= 30 && weatherState.wind >= 25) {
+        fireRisk = "EXTREMO";
+        fireColor = "#dc2626"; // Red
+    } else if (weatherState.temp >= 25 && weatherState.humidity <= 40 && weatherState.wind >= 15) {
+        fireRisk = "ALTO";
+        fireColor = "#f97316"; // Orange
+    } else if (weatherState.temp >= 20 && weatherState.humidity <= 50) {
+        fireRisk = "MODERADO";
+        fireColor = "#eab308"; // Yellow
+    }
+
+    if (fireIndexText && fireIcon) {
+        fireIndexText.innerText = fireRisk;
+        fireIndexText.style.color = fireColor;
+        fireIcon.style.color = fireColor;
+    }
+
+    // Configurar Alertas Extremas (Temperatura o Precipitación)
+    const alertContainer = document.getElementById('weather-extreme-alerts');
+    const alertText = document.getElementById('weather-extreme-text');
+    let alertMsg = "";
+
+    if (weatherState.temp >= 35) {
+        alertMsg = "ALERTA: Temperatura Extrema";
+    } else if (weatherState.temp <= 0) {
+        alertMsg = "ALERTA: Riesgo de Helada";
+    } else if (weatherState.status.toLowerCase().includes("lluvia") || weatherState.status.toLowerCase().includes("tormenta") || weatherState.status.toLowerCase().includes("chubasco")) {
+        alertMsg = "ALERTA: Precipitación / Tormenta";
+    }
+
+    if (alertContainer && alertText) {
+        if (alertMsg) {
+            alertText.innerText = alertMsg;
+            alertContainer.style.display = "flex";
+        } else {
+            alertContainer.style.display = "none";
+        }
+    }
 }
 
 async function fetchWeather() {
