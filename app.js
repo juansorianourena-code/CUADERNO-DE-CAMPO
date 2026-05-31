@@ -3680,13 +3680,9 @@ async function generateReportPDF() {
     }
 
     reportHtml += `
-        <div class="report-footer">
-            <div>
-                <strong>ANTIGRAVITY</strong><br>
+        <div class="report-footer" style="justify-content: flex-end;">
+            <div style="text-align: right;">
                 Generado automáticamente el ${endDate.toLocaleDateString('es-ES')} a las ${endDate.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}
-            </div>
-            <div class="signature-box">
-                Firma del Responsable / Técnico
             </div>
         </div>
     `;
