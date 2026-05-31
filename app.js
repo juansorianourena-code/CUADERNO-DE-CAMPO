@@ -930,12 +930,17 @@ function renderAlmacen() {
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
                 <div class="stock-control">
                     <button class="stock-btn" onclick="adjustStock(${p.id}, -1)">-</button>
-                    <span class="stock-value" style="${stockStyle}">${p.stock.toFixed(1)} ud</span>
+                    <span class="stock-value" style="${stockStyle}">${p.stock.toFixed(1)} ${p.unit || 'ud'}</span>
                     <button class="stock-btn" onclick="adjustStock(${p.id}, 1)">+</button>
                 </div>
-                <button class="btn btn-danger" style="width: auto; padding: 6px 10px; font-size: 0.75rem; border-radius: 8px;" onclick="deleteProduct(${p.id})">
-                    <i class="ph ph-trash"></i>
-                </button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-warning" style="width: auto; padding: 6px 10px; font-size: 0.75rem; border-radius: 8px;" onclick="openEditProductModal(${p.id})">
+                        <i class="ph ph-pencil-simple"></i>
+                    </button>
+                    <button class="btn btn-danger" style="width: auto; padding: 6px 10px; font-size: 0.75rem; border-radius: 8px;" onclick="deleteProduct(${p.id})">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                </div>
             </div>
         `;
         listContainer.appendChild(card);
@@ -954,31 +959,81 @@ function adjustStock(productId, amount) {
 
 function addProduct(e) {
     e.preventDefault();
+    const idField = document.getElementById('prod-id').value;
     const name = document.getElementById('prod-name').value;
     const type = document.getElementById('prod-type').value;
     const stock = parseFloat(document.getElementById('prod-stock').value) || 0;
+    const unit = document.getElementById('prod-unit').value || 'ud';
     const price = parseFloat(document.getElementById('prod-price').value) || 0;
     const dose = document.getElementById('prod-dose').value;
     const func = document.getElementById('prod-function').value;
     const composition = document.getElementById('prod-composition').value.trim();
 
-    const newProd = {
-        id: Date.now(),
-        name,
-        type,
-        stock,
-        price,
-        dose,
-        function: func,
-        composition: composition || ''
-    };
+    if (idField) {
+        // Edit mode
+        const p = state.almacen.find(prod => prod.id === parseInt(idField));
+        if (p) {
+            p.name = name;
+            p.type = type;
+            p.stock = stock;
+            p.unit = unit;
+            p.price = price;
+            p.dose = dose;
+            p.function = func;
+            p.composition = composition;
+            showToast(`${name} actualizado`, "success");
+        }
+    } else {
+        // Add mode
+        const newProd = {
+            id: Date.now(),
+            name,
+            type,
+            stock,
+            unit,
+            price,
+            dose,
+            function: func,
+            composition: composition || ''
+        };
+        state.almacen.push(newProd);
+        showToast(`${name} añadido al almacén`, "success");
+    }
 
-    state.almacen.push(newProd);
     saveState();
     closeModal('modal-add-product');
     document.getElementById('modal-add-product').querySelector('form').reset();
+    document.getElementById('prod-id').value = '';
     renderAlmacen();
-    showToast(`${name} añadido al almacén`, "success");
+}
+
+function openAddProductModal() {
+    document.getElementById('modal-add-product').querySelector('.sheet-title').innerText = 'Agregar Producto';
+    document.getElementById('modal-add-product').querySelector('form').reset();
+    document.getElementById('prod-id').value = '';
+    openModal('modal-add-product');
+}
+
+function openEditProductModal(productId) {
+    const p = state.almacen.find(prod => prod.id === productId);
+    if (!p) return;
+    
+    document.getElementById('modal-add-product').querySelector('.sheet-title').innerText = 'Editar Producto';
+    document.getElementById('prod-id').value = p.id;
+    document.getElementById('prod-name').value = p.name;
+    document.getElementById('prod-type').value = p.type;
+    document.getElementById('prod-stock').value = p.stock;
+    if (p.unit) {
+        document.getElementById('prod-unit').value = p.unit;
+    } else {
+        document.getElementById('prod-unit').value = 'ud';
+    }
+    document.getElementById('prod-price').value = p.price;
+    document.getElementById('prod-dose').value = p.dose;
+    document.getElementById('prod-function').value = p.function;
+    document.getElementById('prod-composition').value = p.composition || '';
+    
+    openModal('modal-add-product');
 }
 
 function deleteProduct(productId) {
@@ -1105,10 +1160,25 @@ function addParcel(e) {
 
 // --- PLANTINGS REGISTRY (Huerto) ---
 function openAddPlantingModal() {
-    document.getElementById('plant-name').value = '';
-    document.getElementById('plant-qty').value = '';
-    document.getElementById('plant-cost').value = '';
+    document.getElementById('modal-add-planting').querySelector('.sheet-title').innerText = 'Registrar Cultivo';
+    document.getElementById('modal-add-planting').querySelector('form').reset();
+    document.getElementById('plant-id').value = '';
     document.getElementById('plant-date').value = getTodayString();
+    openModal('modal-add-planting');
+}
+
+function openEditPlantingModal(plantingId, pId) {
+    const plantings = state.huerto.plantaciones[pId] || [];
+    const p = plantings.find(pl => pl.id === plantingId);
+    if (!p) return;
+
+    document.getElementById('modal-add-planting').querySelector('.sheet-title').innerText = 'Editar Cultivo';
+    document.getElementById('plant-id').value = p.id;
+    document.getElementById('plant-name').value = p.name;
+    document.getElementById('plant-qty').value = p.qty;
+    document.getElementById('plant-cost').value = p.cost;
+    document.getElementById('plant-date').value = p.date;
+    
     openModal('modal-add-planting');
 }
 
@@ -1120,36 +1190,53 @@ function addPlanting(e) {
     const cost = parseFloat(document.getElementById('plant-cost').value) || 0;
     const dateVal = document.getElementById('plant-date').value;
 
+    const idField = document.getElementById('plant-id').value;
+
     if (!name || qty <= 0 || cost < 0) return;
 
     if (!state.huerto.plantaciones) state.huerto.plantaciones = {};
     if (!state.huerto.plantaciones[pId]) state.huerto.plantaciones[pId] = [];
 
-    const newPlanting = {
-        id: Date.now(),
-        name: name,
-        qty: qty,
-        cost: cost,
-        date: dateVal,
-        status: "active"
-    };
+    if (idField) {
+        // Edit mode
+        const p = state.huerto.plantaciones[pId].find(pl => pl.id === parseInt(idField));
+        if (p) {
+            p.name = name;
+            p.qty = qty;
+            p.cost = cost;
+            p.date = dateVal;
+            showToast("Plantación actualizada", "success");
+        }
+    } else {
+        // Add mode
+        const newPlanting = {
+            id: Date.now(),
+            name: name,
+            qty: qty,
+            cost: cost,
+            date: dateVal,
+            status: "active"
+        };
 
-    state.huerto.plantaciones[pId].push(newPlanting);
+        state.huerto.plantaciones[pId].push(newPlanting);
 
-    // Auto log to journal
-    const totalCost = qty * cost;
-    const noteText = `Nueva plantación en ${state.huerto.parcelas[pId]}: ${qty} plantas de ${name} (Coste: ${cost.toFixed(2)}€/ud, Total: ${totalCost.toFixed(2)}€).`;
-    state.diario.push({
-        id: Date.now() + 1,
-        text: noteText,
-        date: `${dateVal} ${getNowTimeString()}`,
-        photo: MOCK_PHOTOS.riego.url
-    });
+        // Auto log to journal
+        const totalCost = qty * cost;
+        const noteText = `Nueva plantación en ${state.huerto.parcelas[pId]}: ${qty} plantas de ${name} (Coste: ${cost.toFixed(2)}€/ud, Total: ${totalCost.toFixed(2)}€).`;
+        state.diario.push({
+            id: Date.now() + 1,
+            text: noteText,
+            date: `${dateVal} ${getNowTimeString()}`,
+            photo: MOCK_PHOTOS.riego.url
+        });
+        showToast("Plantación guardada", "success");
+    }
 
     saveState();
     closeModal('modal-add-planting');
+    document.getElementById('modal-add-planting').querySelector('form').reset();
+    document.getElementById('plant-id').value = '';
     renderHuerto();
-    showToast("Plantación guardada", "success");
 }
 
 function deletePlanting(plantingId, pId) {
@@ -1187,7 +1274,10 @@ function renderPlantings(pId) {
             <div class="item-info-line" style="font-weight: 700; color: var(--text-primary); margin-top: 2px;">
                 Coste total: <span style="color: var(--primary-light);">${totalCost.toFixed(2)} €</span>
             </div>
-            <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;">
+                <button class="btn btn-warning" style="width: auto; padding: 6px 10px; font-size: 0.75rem; border-radius: 8px;" onclick="openEditPlantingModal(${p.id}, '${pId}')">
+                    <i class="ph ph-pencil-simple"></i>
+                </button>
                 <button class="btn btn-danger" style="width: auto; padding: 6px 10px; font-size: 0.75rem; border-radius: 8px;" onclick="deletePlanting(${p.id}, '${pId}')">
                     <i class="ph ph-trash"></i>
                 </button>
@@ -1280,9 +1370,14 @@ function renderTasks(type, parcelId) {
                 <i class="${checkIcon}" style="font-size: 1.3rem; color: ${t.done ? 'var(--primary)' : 'var(--text-secondary)'};"></i>
                 <span style="${textStyle}">${escapeHTML(t.text)}</span>
             </div>
-            <button class="close-sheet" style="font-size: 1.1rem; color: var(--text-muted); cursor: pointer;" onclick="deleteTask(${t.id}, '${type}', '${parcelId}')">
-                <i class="ph ph-trash"></i>
-            </button>
+            <div style="display: flex; gap: 4px;">
+                <button class="close-sheet" style="font-size: 1.1rem; color: var(--warning); cursor: pointer;" onclick="editTask(${t.id}, '${type}', '${parcelId}')">
+                    <i class="ph ph-pencil-simple"></i>
+                </button>
+                <button class="close-sheet" style="font-size: 1.1rem; color: var(--danger); cursor: pointer;" onclick="deleteTask(${t.id}, '${type}', '${parcelId}')">
+                    <i class="ph ph-trash"></i>
+                </button>
+            </div>
         `;
         listEl.appendChild(card);
     });
@@ -1328,6 +1423,20 @@ function deleteTask(taskId, type, parcelId) {
     showToast("Tarea eliminada", "info");
 }
 
+function editTask(taskId, type, parcelId) {
+    const list = state[type].tareas[parcelId] || [];
+    const t = list.find(task => task.id === taskId);
+    if (t) {
+        const newText = prompt("Editar tarea:", t.text);
+        if (newText !== null && newText.trim() !== '') {
+            t.text = newText.trim();
+            saveState();
+            renderTasks(type, parcelId);
+            showToast("Tarea actualizada", "success");
+        }
+    }
+}
+
 // --- SHARED TREATMENTS ENGINE ---
 function renderTreatments(type, parcelId) {
     const listEl = document.getElementById(`${type}-treatments-list`);
@@ -1364,9 +1473,17 @@ function renderTreatments(type, parcelId) {
                 <span class="item-info-line" style="font-weight:700;">${t.date}</span>
             </div>
             <div class="item-info-line">Dosis real: <span>${escapeHTML(t.dose)}</span></div>
-            <div class="item-info-line">Descontado: <span>${t.amount} uds</span></div>
+            <div class="item-info-line">Descontado: <span>${t.amount} ${t.unit || 'ud'}</span></div>
             <div class="item-info-line" style="margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--border-color);">
                 ${safetyText}
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
+                <button class="btn btn-warning" style="width: auto; padding: 6px 10px; font-size: 0.75rem; border-radius: 8px;" onclick="openEditTreatmentModal(${t.id}, '${type}', '${parcelId}')">
+                    <i class="ph ph-pencil-simple"></i>
+                </button>
+                <button class="btn btn-danger" style="width: auto; padding: 6px 10px; font-size: 0.75rem; border-radius: 8px;" onclick="deleteTreatment(${t.id}, '${type}', '${parcelId}')">
+                    <i class="ph ph-trash"></i>
+                </button>
             </div>
         `;
         listEl.appendChild(card);
@@ -1396,10 +1513,53 @@ function openApplyTreatmentModal(type) {
     const typeGroup = document.getElementById('treatment-type-group');
     if (typeGroup) typeGroup.style.display = 'none';
 
+    document.getElementById('modal-apply-treatment').querySelector('.sheet-title').innerText = 'Registrar Tratamiento';
+    document.getElementById('treatment-id').value = '';
     document.getElementById('treatment-type').value = type;
     document.getElementById('treatment-date').value = getTodayString();
     document.getElementById('treatment-amount').value = 1;
     document.getElementById('treatment-safety-days').value = 0;
+    document.getElementById('treatment-dose').value = '';
+    
+    openModal('modal-apply-treatment');
+}
+
+function openEditTreatmentModal(treatmentId, type, parcelId) {
+    const list = state[type].tratamientos[parcelId] || [];
+    const t = list.find(tr => tr.id === treatmentId);
+    if (!t) return;
+
+    // Populate products select with options
+    const select = document.getElementById('treatment-product');
+    select.innerHTML = '';
+    
+    const availableProducts = state.almacen.filter(p => p.stock > 0 || p.id === t.productId || p.name === t.productName);
+
+    availableProducts.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.innerText = `${p.name} (Stock: ${p.stock.toFixed(1)} ${p.unit || 'ud'})`;
+        select.appendChild(opt);
+    });
+
+    const typeGroup = document.getElementById('treatment-type-group');
+    if (typeGroup) typeGroup.style.display = 'none';
+
+    document.getElementById('modal-apply-treatment').querySelector('.sheet-title').innerText = 'Editar Tratamiento';
+    document.getElementById('treatment-id').value = t.id;
+    document.getElementById('treatment-type').value = type;
+    document.getElementById('treatment-date').value = t.date;
+    document.getElementById('treatment-amount').value = t.amount;
+    document.getElementById('treatment-safety-days').value = t.safetyDays;
+    document.getElementById('treatment-dose').value = t.dose;
+    
+    // Select the correct product
+    if (t.productId) {
+        select.value = t.productId;
+    } else {
+        const matchingProd = availableProducts.find(p => p.name === t.productName);
+        if (matchingProd) select.value = matchingProd.id;
+    }
     
     openModal('modal-apply-treatment');
 }
@@ -1442,6 +1602,7 @@ function openCalendarScheduleModal() {
 
 function applyTreatment(e) {
     e.preventDefault();
+    const idField = document.getElementById('treatment-id').value;
     const type = document.getElementById('treatment-type').value;
     const parcelId = (type === 'huerto') ? state.currentHuertoParcela : state.currentOlivarParcela;
     const productId = parseInt(document.getElementById('treatment-product').value);
@@ -1453,44 +1614,89 @@ function applyTreatment(e) {
     const prod = state.almacen.find(p => p.id === productId);
     if (!prod) return;
 
-    if (prod.stock < amount) {
-        showToast("Error: No hay suficiente stock en almacén", "error");
-        return;
-    }
-
-    // Deduct stock
-    prod.stock -= amount;
-
-    // Calc expiration date of safety period
-    const expDate = addDays(dateVal, safetyDays);
-
-    const newTreatment = {
-        id: Date.now(),
-        productName: prod.name,
-        date: dateVal,
-        dose: dose,
-        amount: amount,
-        safetyDays: safetyDays,
-        expiresAt: expDate
-    };
-
     if (!state[type].tratamientos[parcelId]) state[type].tratamientos[parcelId] = [];
-    state[type].tratamientos[parcelId].push(newTreatment);
+    const list = state[type].tratamientos[parcelId];
 
-    // Also auto-add a diary log note!
-    const noteText = `Tratamiento aplicado en ${state[type].parcelas[parcelId]}: ${prod.name} (Dosis: ${dose}, Plazo de seguridad: ${safetyDays} días).`;
-    state.diario.push({
-        id: Date.now() + 1,
-        text: noteText,
-        date: `${dateVal} ${getNowTimeString()}`,
-        photo: MOCK_PHOTOS.olivar.url
-    });
+    if (idField) {
+        // Edit mode
+        const t = list.find(tr => tr.id === parseInt(idField));
+        if (t) {
+            // Adjust stock difference
+            const amountDiff = amount - t.amount;
+            if (prod.stock < amountDiff) {
+                showToast("Error: No hay suficiente stock en almacén para este incremento", "error");
+                return;
+            }
+            prod.stock -= amountDiff;
+
+            t.productId = productId;
+            t.productName = prod.name;
+            t.unit = prod.unit || 'ud';
+            t.date = dateVal;
+            t.dose = dose;
+            t.amount = amount;
+            t.safetyDays = safetyDays;
+            t.expiresAt = addDays(dateVal, safetyDays);
+            showToast("Tratamiento actualizado", "success");
+        }
+    } else {
+        // Add mode
+        if (prod.stock < amount) {
+            showToast("Error: No hay suficiente stock en almacén", "error");
+            return;
+        }
+        prod.stock -= amount;
+        const expDate = addDays(dateVal, safetyDays);
+
+        const newTreatment = {
+            id: Date.now(),
+            productId: productId,
+            productName: prod.name,
+            unit: prod.unit || 'ud',
+            date: dateVal,
+            dose: dose,
+            amount: amount,
+            safetyDays: safetyDays,
+            expiresAt: expDate
+        };
+        list.push(newTreatment);
+
+        const noteText = `Tratamiento aplicado en ${state[type].parcelas[parcelId]}: ${prod.name} (Dosis: ${dose}, Plazo de seguridad: ${safetyDays} días).`;
+        state.diario.push({
+            id: Date.now() + 1,
+            text: noteText,
+            date: `${dateVal} ${getNowTimeString()}`,
+            photo: MOCK_PHOTOS.olivar.url
+        });
+        showToast("Tratamiento registrado y stock descontado", "success");
+    }
 
     saveState();
     closeModal('modal-apply-treatment');
+    document.getElementById('modal-apply-treatment').querySelector('form').reset();
+    document.getElementById('treatment-id').value = '';
     renderCampo();
     if (state.currentView === 'calendario') renderCalendar();
-    showToast("Tratamiento registrado y stock descontado", "success");
+}
+
+function deleteTreatment(treatmentId, type, parcelId) {
+    if (confirm("¿Estás seguro de que quieres eliminar este tratamiento?")) {
+        const list = state[type].tratamientos[parcelId] || [];
+        const t = list.find(tr => tr.id === treatmentId);
+        if (t) {
+            if (!confirm(`¿Se llegó a gastar el producto realmente?\n\nAceptar: SÍ se gastó (No recuperar stock)\nCancelar: NO se gastó / Error (Devolver ${t.amount} ${t.unit || 'ud'} al almacén)`)) {
+                const prod = state.almacen.find(p => p.id === t.productId || p.name === t.productName);
+                if (prod) {
+                    prod.stock += t.amount;
+                    showToast("Stock devuelto al almacén", "info");
+                }
+            }
+            state[type].tratamientos[parcelId] = list.filter(tr => tr.id !== treatmentId);
+            saveState();
+            renderCampo();
+            showToast("Tratamiento eliminado", "info");
+        }
+    }
 }
 
 function checkSafetyPeriod(type, parcelId) {
@@ -2493,6 +2699,14 @@ function renderRiego(type, parcelId) {
                         </div>
                     </div>
                     ${r.notes ? `<div style="font-size:0.75rem; color:var(--text-primary); margin-top:6px; background:rgba(255,255,255,0.5); padding:4px 8px; border-radius:4px; font-style:italic;">💬 ${r.notes}</div>` : ''}
+                    <div style="display: flex; gap: 4px; margin-top: 6px; justify-content: flex-end;">
+                        <button class="btn btn-warning" style="width: auto; padding: 4px 6px; font-size: 0.7rem; border-radius: 6px;" onclick="openEditRiegoModal(${r.id}, '${type}', '${parcelId}')">
+                            <i class="ph ph-pencil-simple"></i>
+                        </button>
+                        <button class="btn btn-danger" style="width: auto; padding: 4px 6px; font-size: 0.7rem; border-radius: 6px;" onclick="deleteRiego(${r.id}, '${type}', '${parcelId}')">
+                            <i class="ph ph-trash"></i>
+                        </button>
+                    </div>
                 </div>
             `;
         });
@@ -2501,6 +2715,8 @@ function renderRiego(type, parcelId) {
 }
 
 function openAddRiegoModal(type, parcelId) {
+    document.getElementById('modal-add-riego').querySelector('.sheet-title').innerText = 'Registrar Riego';
+    document.getElementById('riego-id').value = '';
     document.getElementById('riego-type').value = type;
     document.getElementById('riego-parcela').value = parcelId;
     document.getElementById('riego-date').value = getTodayString();
@@ -2511,8 +2727,27 @@ function openAddRiegoModal(type, parcelId) {
     openModal('modal-add-riego');
 }
 
+function openEditRiegoModal(riegoId, type, parcelId) {
+    const list = state[type].riego[parcelId] || [];
+    const r = list.find(ri => ri.id === riegoId);
+    if (!r) return;
+
+    document.getElementById('modal-add-riego').querySelector('.sheet-title').innerText = 'Editar Riego';
+    document.getElementById('riego-id').value = r.id;
+    document.getElementById('riego-type').value = type;
+    document.getElementById('riego-parcela').value = parcelId;
+    document.getElementById('riego-date').value = r.date;
+    document.getElementById('riego-minutes').value = r.minutes.replace(' min', ''); // Handle possible " min" suffix
+    document.getElementById('riego-liters').value = r.liters;
+    document.getElementById('riego-method').value = r.method;
+    document.getElementById('riego-notes').value = r.notes || '';
+    
+    openModal('modal-add-riego');
+}
+
 function saveRiego(e) {
     e.preventDefault();
+    const idField = document.getElementById('riego-id').value;
     const type = document.getElementById('riego-type').value;
     const parcelId = document.getElementById('riego-parcela').value;
     const date = document.getElementById('riego-date').value;
@@ -2523,23 +2758,48 @@ function saveRiego(e) {
 
     if (!state[type].riego) state[type].riego = {};
     if (!state[type].riego[parcelId]) state[type].riego[parcelId] = [];
+    const list = state[type].riego[parcelId];
 
-    state[type].riego[parcelId].push({ id: Date.now(), date, minutes, liters, method, notes });
-    
-    let diarioText = `Riego en ${state[type].parcelas[parcelId]}: ${liters}L por ${method.toLowerCase()} (Tiempo: ${minutes}).`;
-    if (notes) diarioText += ` Observaciones: ${notes}`;
+    if (idField) {
+        const r = list.find(ri => ri.id === parseInt(idField));
+        if (r) {
+            r.date = date;
+            r.minutes = minutes;
+            r.liters = liters;
+            r.method = method;
+            r.notes = notes;
+            showToast('Riego actualizado', 'success');
+        }
+    } else {
+        list.push({ id: Date.now(), date, minutes, liters, method, notes });
+        
+        let diarioText = `Riego en ${state[type].parcelas[parcelId]}: ${liters}L por ${method.toLowerCase()} (Tiempo: ${minutes}).`;
+        if (notes) diarioText += ` Observaciones: ${notes}`;
 
-    state.diario.push({
-        id: Date.now() + 1,
-        text: diarioText,
-        date: `${date} ${getNowTimeString()}`,
-        photo: null
-    });
+        state.diario.push({
+            id: Date.now() + 1,
+            text: diarioText,
+            date: `${date} ${getNowTimeString()}`,
+            photo: null
+        });
+        showToast('Riego registrado', 'success');
+    }
 
     saveState();
     closeModal('modal-add-riego');
+    document.getElementById('modal-add-riego').querySelector('form').reset();
+    document.getElementById('riego-id').value = '';
     renderRiego(type, parcelId);
-    showToast('Riego registrado', 'success');
+}
+
+function deleteRiego(riegoId, type, parcelId) {
+    if (confirm("¿Estás seguro de que quieres eliminar este riego?")) {
+        const list = state[type].riego[parcelId] || [];
+        state[type].riego[parcelId] = list.filter(ri => ri.id !== riegoId);
+        saveState();
+        renderRiego(type, parcelId);
+        showToast("Riego eliminado", "info");
+    }
 }
 
 // ============================================================
@@ -2573,8 +2833,16 @@ function renderFertilizaciones(type, parcelId) {
                         <span style="font-size:0.72rem; color:var(--primary); display:block;">${f.tipoAbonado}</span>
                     </div>
                     <div style="text-align:right;">
-                        <span style="font-size:0.8rem; font-weight:700; color:var(--primary-light);">${f.amount} uds</span>
+                        <span style="font-size:0.8rem; font-weight:700; color:var(--primary-light);">${f.amount} ${f.unit || 'ud'}</span>
                         <span style="font-size:0.72rem; color:var(--text-muted); display:block;">${f.date}</span>
+                        <div style="display: flex; gap: 4px; margin-top: 4px; justify-content: flex-end;">
+                            <button class="btn btn-warning" style="width: auto; padding: 4px 6px; font-size: 0.7rem; border-radius: 6px;" onclick="openEditFertilizacionModal(${f.id}, '${type}', '${parcelId}')">
+                                <i class="ph ph-pencil-simple"></i>
+                            </button>
+                            <button class="btn btn-danger" style="width: auto; padding: 4px 6px; font-size: 0.7rem; border-radius: 6px;" onclick="deleteFertilizacion(${f.id}, '${type}', '${parcelId}')">
+                                <i class="ph ph-trash"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -2597,6 +2865,8 @@ function openAddFertilizacionModal(type, parcelId) {
         opt.innerText = `${p.name} (Stock: ${p.stock.toFixed(1)})`;
         select.appendChild(opt);
     });
+    document.getElementById('modal-add-fertilizacion').querySelector('.sheet-title').innerText = 'Registrar Fertilización';
+    document.getElementById('fertilizacion-id').value = '';
     document.getElementById('fertilizacion-type').value = type;
     document.getElementById('fertilizacion-parcela').value = parcelId;
     document.getElementById('fertilizacion-date').value = getTodayString();
@@ -2605,8 +2875,43 @@ function openAddFertilizacionModal(type, parcelId) {
     openModal('modal-add-fertilizacion');
 }
 
+function openEditFertilizacionModal(fertilizacionId, type, parcelId) {
+    const list = state[type].fertilizaciones[parcelId] || [];
+    const f = list.find(fe => fe.id === fertilizacionId);
+    if (!f) return;
+
+    const select = document.getElementById('fertilizacion-product');
+    select.innerHTML = '';
+    const abonos = state.almacen.filter(p => p.stock > 0 || p.id === f.productId || p.name === f.productName);
+    
+    abonos.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.innerText = `${p.name} (Stock: ${p.stock.toFixed(1)} ${p.unit || 'ud'})`;
+        select.appendChild(opt);
+    });
+
+    document.getElementById('modal-add-fertilizacion').querySelector('.sheet-title').innerText = 'Editar Fertilización';
+    document.getElementById('fertilizacion-id').value = f.id;
+    document.getElementById('fertilizacion-type').value = type;
+    document.getElementById('fertilizacion-parcela').value = parcelId;
+    document.getElementById('fertilizacion-date').value = f.date;
+    document.getElementById('fertilizacion-amount').value = f.amount;
+    document.getElementById('fertilizacion-tipo').value = f.tipoAbonado;
+    
+    if (f.productId) {
+        select.value = f.productId;
+    } else {
+        const matchingProd = abonos.find(p => p.name === f.productName);
+        if (matchingProd) select.value = matchingProd.id;
+    }
+
+    openModal('modal-add-fertilizacion');
+}
+
 function saveFertilizacion(e) {
     e.preventDefault();
+    const idField = document.getElementById('fertilizacion-id').value;
     const type = document.getElementById('fertilizacion-type').value;
     const parcelId = document.getElementById('fertilizacion-parcela').value;
     const productId = parseInt(document.getElementById('fertilizacion-product').value);
@@ -2616,34 +2921,80 @@ function saveFertilizacion(e) {
 
     const prod = state.almacen.find(p => p.id === productId);
     if (!prod) return;
-    if (prod.stock < amount) {
-        showToast('Stock insuficiente en almacén', 'error');
-        return;
-    }
-    prod.stock -= amount;
 
     if (!state[type].fertilizaciones) state[type].fertilizaciones = {};
     if (!state[type].fertilizaciones[parcelId]) state[type].fertilizaciones[parcelId] = [];
+    const list = state[type].fertilizaciones[parcelId];
 
-    state[type].fertilizaciones[parcelId].push({
-        id: Date.now(),
-        productName: prod.name,
-        amount,
-        tipoAbonado,
-        date
-    });
+    if (idField) {
+        const f = list.find(fe => fe.id === parseInt(idField));
+        if (f) {
+            const amountDiff = amount - f.amount;
+            if (prod.stock < amountDiff) {
+                showToast('Stock insuficiente en almacén', 'error');
+                return;
+            }
+            prod.stock -= amountDiff;
 
-    state.diario.push({
-        id: Date.now() + 1,
-        text: `Abonado en ${state[type].parcelas[parcelId]}: ${amount} uds de ${prod.name} (${tipoAbonado}).`,
-        date: `${date} ${getNowTimeString()}`,
-        photo: null
-    });
+            f.productId = productId;
+            f.productName = prod.name;
+            f.unit = prod.unit || 'ud';
+            f.amount = amount;
+            f.tipoAbonado = tipoAbonado;
+            f.date = date;
+            showToast('Fertilización actualizada', 'success');
+        }
+    } else {
+        if (prod.stock < amount) {
+            showToast('Stock insuficiente en almacén', 'error');
+            return;
+        }
+        prod.stock -= amount;
+
+        list.push({
+            id: Date.now(),
+            productId: productId,
+            productName: prod.name,
+            unit: prod.unit || 'ud',
+            amount,
+            tipoAbonado,
+            date
+        });
+
+        state.diario.push({
+            id: Date.now() + 1,
+            text: `Abonado en ${state[type].parcelas[parcelId]}: ${amount} ${prod.unit || 'uds'} de ${prod.name} (${tipoAbonado}).`,
+            date: `${date} ${getNowTimeString()}`,
+            photo: null
+        });
+        showToast('Abonado registrado y stock descontado', 'success');
+    }
 
     saveState();
     closeModal('modal-add-fertilizacion');
+    document.getElementById('modal-add-fertilizacion').querySelector('form').reset();
+    document.getElementById('fertilizacion-id').value = '';
     renderFertilizaciones(type, parcelId);
-    showToast('Abonado registrado y stock descontado', 'success');
+}
+
+function deleteFertilizacion(fertilizacionId, type, parcelId) {
+    if (confirm("¿Estás seguro de que quieres eliminar esta fertilización?")) {
+        const list = state[type].fertilizaciones[parcelId] || [];
+        const f = list.find(fe => fe.id === fertilizacionId);
+        if (f) {
+            if (!confirm(`¿Se llegó a gastar el abono realmente?\n\nAceptar: SÍ se gastó (No recuperar stock)\nCancelar: NO se gastó / Error (Devolver ${f.amount} ${f.unit || 'ud'} al almacén)`)) {
+                const prod = state.almacen.find(p => p.id === f.productId || p.name === f.productName);
+                if (prod) {
+                    prod.stock += f.amount;
+                    showToast("Stock devuelto al almacén", "info");
+                }
+            }
+            state[type].fertilizaciones[parcelId] = list.filter(fe => fe.id !== fertilizacionId);
+            saveState();
+            renderFertilizaciones(type, parcelId);
+            showToast("Fertilización eliminada", "info");
+        }
+    }
 }
 
 // ============================================================
@@ -2683,8 +3034,11 @@ function renderPlagaAlertas(type, parcelId) {
                     </div>
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
                         <span style="font-size:0.72rem; font-weight:700; color:${statusColor};">${statusText}</span>
-                        ${isDue ? `<button style="font-size:0.7rem; padding:3px 8px; border-radius:6px; border:none; background:var(--success); color:white; cursor:pointer; font-weight:700;" onclick="markPlagaReviewed(${a.id},'${type}','${parcelId}')">Revisado ✓</button>` : ''}
-                        <button style="font-size:0.7rem; padding:2px 6px; border-radius:6px; border:1px solid var(--border-color); background:none; color:var(--text-muted); cursor:pointer;" onclick="deletePlagaAlert(${a.id},'${type}','${parcelId}')">✕</button>
+                        <div style="display: flex; gap: 4px; margin-top: 4px;">
+                            ${isDue ? `<button style="font-size:0.7rem; padding:3px 8px; border-radius:6px; border:none; background:var(--success); color:white; cursor:pointer; font-weight:700;" onclick="markPlagaReviewed(${a.id},'${type}','${parcelId}')">Revisado ✓</button>` : ''}
+                            <button style="font-size:0.7rem; padding:2px 6px; border-radius:6px; border:1px solid var(--warning); background:var(--warning-bg); color:var(--warning); cursor:pointer;" onclick="openEditPlagaAlertModal(${a.id},'${type}','${parcelId}')"><i class="ph ph-pencil-simple"></i></button>
+                            <button style="font-size:0.7rem; padding:2px 6px; border-radius:6px; border:1px solid var(--danger); background:var(--danger-bg); color:var(--danger); cursor:pointer;" onclick="deletePlagaAlert(${a.id},'${type}','${parcelId}')"><i class="ph ph-trash"></i></button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -2694,6 +3048,8 @@ function renderPlagaAlertas(type, parcelId) {
 }
 
 function openAddPlagaAlertModal(type, parcelId) {
+    document.getElementById('modal-add-plaga').querySelector('.sheet-title').innerText = 'Alerta de Plaga';
+    document.getElementById('plaga-id').value = '';
     document.getElementById('plaga-type').value = type;
     document.getElementById('plaga-parcela').value = parcelId;
     document.getElementById('plaga-name').value = '';
@@ -2701,8 +3057,24 @@ function openAddPlagaAlertModal(type, parcelId) {
     openModal('modal-add-plaga');
 }
 
+function openEditPlagaAlertModal(alertId, type, parcelId) {
+    const alertas = state[type].plagaAlertas[parcelId] || [];
+    const a = alertas.find(x => x.id === alertId);
+    if (!a) return;
+
+    document.getElementById('modal-add-plaga').querySelector('.sheet-title').innerText = 'Editar Alerta';
+    document.getElementById('plaga-id').value = a.id;
+    document.getElementById('plaga-type').value = type;
+    document.getElementById('plaga-parcela').value = parcelId;
+    document.getElementById('plaga-name').value = a.name;
+    document.getElementById('plaga-interval').value = a.intervalDays;
+    
+    openModal('modal-add-plaga');
+}
+
 function savePlagaAlert(e) {
     e.preventDefault();
+    const idField = document.getElementById('plaga-id').value;
     const type = document.getElementById('plaga-type').value;
     const parcelId = document.getElementById('plaga-parcela').value;
     const name = document.getElementById('plaga-name').value.trim();
@@ -2712,17 +3084,30 @@ function savePlagaAlert(e) {
     if (!state[type].plagaAlertas) state[type].plagaAlertas = {};
     if (!state[type].plagaAlertas[parcelId]) state[type].plagaAlertas[parcelId] = [];
 
-    state[type].plagaAlertas[parcelId].push({
-        id: Date.now(),
-        name,
-        intervalDays,
-        lastChecked: null
-    });
+    const alertas = state[type].plagaAlertas[parcelId];
+
+    if (idField) {
+        const a = alertas.find(x => x.id === parseInt(idField));
+        if (a) {
+            a.name = name;
+            a.intervalDays = intervalDays;
+            showToast(`Alerta "${name}" actualizada`, 'success');
+        }
+    } else {
+        alertas.push({
+            id: Date.now(),
+            name,
+            intervalDays,
+            lastChecked: null
+        });
+        showToast(`Alerta "${name}" activada`, 'success');
+    }
 
     saveState();
     closeModal('modal-add-plaga');
+    document.getElementById('modal-add-plaga').querySelector('form').reset();
+    document.getElementById('plaga-id').value = '';
     renderPlagaAlertas(type, parcelId);
-    showToast(`Alerta "${name}" activada`, 'success');
 }
 
 function markPlagaReviewed(alertId, type, parcelId) {

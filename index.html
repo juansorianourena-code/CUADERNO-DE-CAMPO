@@ -61,7 +61,7 @@
                     <div class="input-group" style="flex: 1; margin: 0;">
                         <input type="text" id="almacen-search" class="form-input" placeholder="Buscar producto..." oninput="renderAlmacen()">
                     </div>
-                    <button class="btn" style="width: 48px; height: 48px; padding: 0; border-radius: var(--radius-sm);" onclick="openModal('modal-add-product')" title="Añadir Producto">
+                    <button class="btn" style="width: 48px; height: 48px; padding: 0; border-radius: var(--radius-sm);" onclick="openAddProductModal()" title="Añadir Producto">
                         <i class="ph ph-plus" style="font-size: 1.4rem;"></i>
                     </button>
                 </div>
@@ -663,6 +663,7 @@
                     <button class="close-sheet" onclick="closeModal('modal-add-riego')"><i class="ph ph-x"></i></button>
                 </div>
                 <form onsubmit="saveRiego(event)">
+                    <input type="hidden" id="riego-id">
                     <input type="hidden" id="riego-type">
                     <input type="hidden" id="riego-parcela">
                     <div class="input-group">
@@ -705,6 +706,7 @@
                     <button class="close-sheet" onclick="closeModal('modal-add-fertilizacion')"><i class="ph ph-x"></i></button>
                 </div>
                 <form onsubmit="saveFertilizacion(event)">
+                    <input type="hidden" id="fertilizacion-id">
                     <input type="hidden" id="fertilizacion-type">
                     <input type="hidden" id="fertilizacion-parcela">
                     <div class="input-group">
@@ -740,6 +742,7 @@
                     <button class="close-sheet" onclick="closeModal('modal-add-plaga')"><i class="ph ph-x"></i></button>
                 </div>
                 <form onsubmit="savePlagaAlert(event)">
+                    <input type="hidden" id="plaga-id">
                     <input type="hidden" id="plaga-type">
                     <input type="hidden" id="plaga-parcela">
                     <div class="input-group">
@@ -763,6 +766,7 @@
                     <button class="close-sheet" onclick="closeModal('modal-add-product')"><i class="ph ph-x"></i></button>
                 </div>
                 <form onsubmit="addProduct(event)">
+                    <input type="hidden" id="prod-id">
                     <div class="input-group">
                         <label class="input-label" for="prod-name">Nombre del Producto</label>
                         <input type="text" id="prod-name" class="form-input" placeholder="Ej: Glifosato, Cobre, Urea" required autocomplete="off">
@@ -780,7 +784,14 @@
                         </div>
                         <div class="input-group">
                             <label class="input-label" for="prod-stock">Stock Inicial</label>
-                            <input type="number" id="prod-stock" class="form-input" placeholder="Cant." required step="any">
+                            <div style="display: flex; gap: 8px;">
+                                <input type="number" id="prod-stock" class="form-input" placeholder="Cant." required step="any" style="flex: 2;">
+                                <select id="prod-unit" class="form-select" style="flex: 1; padding-left: 5px; padding-right: 5px;">
+                                    <option value="ud">Ud</option>
+                                    <option value="kg">Kg</option>
+                                    <option value="L">L</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="inline-fields">
@@ -814,6 +825,7 @@
                     <button class="close-sheet" onclick="closeModal('modal-apply-treatment')"><i class="ph ph-x"></i></button>
                 </div>
                 <form onsubmit="applyTreatment(event)">
+                    <input type="hidden" id="treatment-id">
                     <input type="hidden" id="treatment-type"> <!-- 'huerto' o 'olivar' -->
                     <div class="input-group" id="treatment-type-group" style="display: none; margin-bottom: 12px;">
                         <label class="input-label" for="treatment-type-select">Tipo de Terreno</label>
@@ -861,6 +873,7 @@
                     <button class="close-sheet" onclick="closeModal('modal-add-planting')"><i class="ph ph-x"></i></button>
                 </div>
                 <form onsubmit="addPlanting(event)">
+                    <input type="hidden" id="plant-id">
                     <div class="input-group">
                         <label class="input-label" for="plant-name">Variedad / Tipo de Planta</label>
                         <input type="text" id="plant-name" class="form-input" placeholder="Ej: Tomate Raf, Lechuga Romana, Pimiento" required autocomplete="off">
@@ -892,6 +905,7 @@
                     <button class="close-sheet" onclick="closeModal('modal-add-parcel')"><i class="ph ph-x"></i></button>
                 </div>
                 <form onsubmit="addParcel(event)">
+                    <input type="hidden" id="parcel-id">
                     <input type="hidden" id="parcel-modal-type">
                     <div class="input-group">
                         <label class="input-label" for="parcel-modal-name">Nombre</label>

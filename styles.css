@@ -394,6 +394,12 @@ body {
     color: var(--danger);
 }
 
+.btn-warning {
+    background: var(--warning-bg);
+    border: 1px solid var(--warning);
+    color: var(--warning);
+}
+
 /* --- Tab Selector (Parcelas, etc) --- */
 .tab-selector {
     display: flex;
