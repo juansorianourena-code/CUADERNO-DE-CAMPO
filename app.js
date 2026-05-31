@@ -3497,30 +3497,31 @@ async function generateReportPDF() {
         }
     }
 
+    // -- RESOLVE LOCATION --
+    let lat = 38.9942; let lon = -1.8564;
+    let locName = 'Albacete';
+    
+    if (reportTarget === 'olivar') {
+        lat = WEATHER_COORDINATES.fuensanta.lat;
+        lon = WEATHER_COORDINATES.fuensanta.lon;
+        locName = WEATHER_COORDINATES.fuensanta.name;
+    } else if (reportTarget === 'huerto') {
+        lat = WEATHER_COORDINATES.albacete.lat;
+        lon = WEATHER_COORDINATES.albacete.lon;
+        locName = WEATHER_COORDINATES.albacete.name;
+    } else {
+        const loc = localStorage.getItem('weatherLocation') || 'albacete';
+        lat = WEATHER_COORDINATES[loc].lat;
+        lon = WEATHER_COORDINATES[loc].lon;
+        locName = WEATHER_COORDINATES[loc].name;
+    }
+
     // -- LLUVIAS (OPEN-METEO) --
     let lluviaHtml = '';
     let totalLluvia = 0;
     if (includeLluvias) {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
-        
-        let lat = 38.9942; let lon = -1.8564;
-        let locName = 'Albacete';
-        
-        if (reportTarget === 'olivar') {
-            lat = WEATHER_COORDINATES.fuensanta.lat;
-            lon = WEATHER_COORDINATES.fuensanta.lon;
-            locName = WEATHER_COORDINATES.fuensanta.name;
-        } else if (reportTarget === 'huerto') {
-            lat = WEATHER_COORDINATES.albacete.lat;
-            lon = WEATHER_COORDINATES.albacete.lon;
-            locName = WEATHER_COORDINATES.albacete.name;
-        } else {
-            const loc = localStorage.getItem('weatherLocation') || 'albacete';
-            lat = WEATHER_COORDINATES[loc].lat;
-            lon = WEATHER_COORDINATES[loc].lon;
-            locName = WEATHER_COORDINATES[loc].name;
-        }
 
         try {
             const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=precipitation_sum&timezone=Europe%2FMadrid`);
@@ -3548,19 +3549,19 @@ async function generateReportPDF() {
                         const monthTotal = days.reduce((acc, d) => acc + d.val, 0);
                         
                         let rows = days.map(d => `
-                            <tr>
-                                <td>${d.date}</td>
-                                <td style="text-align:right; font-weight:bold; color:#2f855a;">${d.val.toFixed(1)} L/m²</td>
-                            </tr>
+                            <div class="rain-day-item">
+                                <div class="rain-day-date">${d.date.split('-').slice(1).reverse().join('/')}</div>
+                                <div class="rain-day-val">${d.val.toFixed(1)} L</div>
+                            </div>
                         `).join('');
 
                         lluviaHtml += `
-                            <div style="margin-bottom: 20px; page-break-inside: avoid;">
-                                <div style="font-weight: 700; color: #276749; margin-bottom: 8px;">🌧️ ${mKey.toUpperCase()} - ${locName} (Total: ${monthTotal.toFixed(1)} L/m²)</div>
-                                <table class="report-table" style="width: 60%;">
-                                    <thead><tr><th>Fecha</th><th style="text-align:right;">Precipitación</th></tr></thead>
-                                    <tbody>${rows}</tbody>
-                                </table>
+                            <div class="rain-month-block">
+                                <div class="rain-month-title">
+                                    <span>🌧️ ${mKey} - ${locName}</span>
+                                    <span>Total: ${monthTotal.toFixed(1)} L/m²</span>
+                                </div>
+                                <div class="rain-days-grid">${rows}</div>
                             </div>
                         `;
                     });
@@ -3578,10 +3579,19 @@ async function generateReportPDF() {
 
     // CONSTRUIR HTML DEL INFORME
     const dateRangeStr = `${startDate.toLocaleDateString('es-ES')} - ${endDate.toLocaleDateString('es-ES')}`;
+    const locationStr = reportTarget === 'all' ? 'General (Varias ubicaciones)' : locName;
     
     let reportHtml = `
-        <div class="report-title">Cuaderno de Explotación</div>
-        <div class="report-subtitle">Período Analizado: ${dateRangeStr}</div>
+        <div class="report-header">
+            <div class="report-title-container">
+                <h1>Cuaderno de Explotación</h1>
+                <p>Registro Integrado de Actividades Agrícolas</p>
+            </div>
+            <div class="report-meta">
+                <div>Ubicación: <strong>${locationStr}</strong></div>
+                <div>Período: <strong>${dateRangeStr}</strong></div>
+            </div>
+        </div>
 
         <div class="report-kpi-grid">
             ${includeLluvias ? `
@@ -3591,7 +3601,7 @@ async function generateReportPDF() {
             </div>` : ''}
             ${includeCosechas ? `
             <div class="report-kpi-box">
-                <div class="report-kpi-value">${totalKg.toFixed(1)} Kg</div>
+                <div class="report-kpi-value">${totalKg.toFixed(1)} Kg/L</div>
                 <div class="report-kpi-label">Producción Total</div>
             </div>` : ''}
             <div class="report-kpi-box">
@@ -3668,6 +3678,18 @@ async function generateReportPDF() {
             </div>
         `;
     }
+
+    reportHtml += `
+        <div class="report-footer">
+            <div>
+                <strong>ANTIGRAVITY</strong><br>
+                Generado automáticamente el ${endDate.toLocaleDateString('es-ES')} a las ${endDate.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}
+            </div>
+            <div class="signature-box">
+                Firma del Responsable / Técnico
+            </div>
+        </div>
+    `;
 
     const printContainer = document.getElementById('print-report');
     printContainer.innerHTML = reportHtml;
