@@ -2399,16 +2399,41 @@ function getLunarPhase(date = new Date()) {
     const phase = ((diffDays % cycle) + cycle) % cycle;
     const illumination = Math.round(50 * (1 - Math.cos((2 * Math.PI * phase) / cycle)));
 
-    let emoji, name, tip;
-    if (phase < 1.85) { emoji = '🌑'; name = 'Luna Nueva'; tip = 'Poda y siembra de raíz.'; }
-    else if (phase < 7.38) { emoji = '🌒'; name = 'Cuarto Creciente'; tip = 'Buena para sembrar plantas de fruto.'; }
-    else if (phase < 14.77) { emoji = '🌓'; name = 'Luna Creciente'; tip = 'Ideal para injertar y trasplantar.'; }
-    else if (phase < 16.61) { emoji = '🌕'; name = 'Luna Llena'; tip = 'Cosecha frutas, máxima concentración de savia.'; }
-    else if (phase < 22.15) { emoji = '🌖'; name = 'Luna Menguante'; tip = 'Podar, cortar leña, tratamientos fungicidas.'; }
-    else if (phase < 25.38) { emoji = '🌗'; name = 'Cuarto Menguante'; tip = 'Abonado de fondo, laboreo del suelo.'; }
-    else { emoji = '🌘'; name = 'Luna Nueva Próxima'; tip = 'Preparar terreno y planificar siembras.'; }
+    const phases = [
+        { limit: 1.85, emoji: '🌑', name: 'Luna Nueva', tip: 'Poda y siembra de raíz.' },
+        { limit: 7.38, emoji: '🌒', name: 'Cuarto Creciente', tip: 'Buena para sembrar plantas de fruto.' },
+        { limit: 14.77, emoji: '🌓', name: 'Luna Creciente', tip: 'Ideal para injertar y trasplantar.' },
+        { limit: 16.61, emoji: '🌕', name: 'Luna Llena', tip: 'Cosecha frutas, máxima concentración.' },
+        { limit: 22.15, emoji: '🌖', name: 'Luna Menguante', tip: 'Podar, cortar leña, tratamientos fungicidas.' },
+        { limit: 25.38, emoji: '🌗', name: 'Cuarto Menguante', tip: 'Abonado de fondo, laboreo del suelo.' },
+        { limit: cycle, emoji: '🌘', name: 'Luna Menguante Final', tip: 'Preparar terreno y planificar siembras.' }
+    ];
 
-    return { emoji, name, illumination, tip, phase: Math.round(phase * 10) / 10 };
+    let currentIdx = phases.findIndex(p => phase < p.limit);
+    if (currentIdx === -1) currentIdx = phases.length - 1;
+
+    const currentPhase = phases[currentIdx];
+    const nextIdx = (currentIdx + 1) % phases.length;
+    const nextPhase = phases[nextIdx];
+
+    const daysLeft = Math.max(1, Math.ceil(currentPhase.limit - phase));
+    let nextPhaseDuration = 0;
+    if (nextIdx === 0) {
+        nextPhaseDuration = Math.ceil(phases[0].limit);
+    } else {
+        nextPhaseDuration = Math.ceil(phases[nextIdx].limit - phases[nextIdx - 1].limit);
+    }
+
+    return { 
+        emoji: currentPhase.emoji, 
+        name: currentPhase.name, 
+        illumination, 
+        tip: currentPhase.tip, 
+        phase: Math.round(phase * 10) / 10,
+        daysLeft,
+        nextPhaseName: nextPhase.name,
+        nextPhaseDuration
+    };
 }
 
 function renderLunarWidget() {
@@ -2416,13 +2441,17 @@ function renderLunarWidget() {
     if (!el) return;
     const moon = getLunarPhase();
     el.innerHTML = `
-        <div style="display:flex; align-items:center; gap:12px;">
-            <span style="font-size:2.4rem; line-height:1;">${moon.emoji}</span>
-            <div>
-                <div style="font-size:0.85rem; font-weight:700; color:var(--text-primary);">${moon.name}</div>
-                <div style="font-size:0.75rem; color:var(--text-secondary);">Iluminación: ${moon.illumination}%</div>
-                <div style="font-size:0.72rem; color:var(--primary); font-style:italic; margin-top:2px;">${moon.tip}</div>
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom: 8px;">
+            <span style="font-size:2.8rem; line-height:1; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));">${moon.emoji}</span>
+            <div style="flex: 1;">
+                <div style="font-size:1rem; font-weight:800; color:var(--text-primary);">${moon.name}</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 2px;">Iluminación: <strong>${moon.illumination}%</strong></div>
+                <div style="font-size:0.75rem; color:var(--primary); font-style:italic; background: rgba(75, 96, 67, 0.05); padding: 4px 6px; border-radius: 4px;">💡 ${moon.tip}</div>
             </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size: 0.75rem; color:var(--text-muted); background: rgba(0,0,0,0.02); padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);">
+            <span>Quedan <strong>${moon.daysLeft} ${moon.daysLeft === 1 ? 'día' : 'días'}</strong> para ${moon.nextPhaseName}</span>
+            <span>(Durará ~${moon.nextPhaseDuration} días)</span>
         </div>
     `;
 }
