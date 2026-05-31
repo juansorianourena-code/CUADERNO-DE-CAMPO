@@ -3679,14 +3679,6 @@ async function generateReportPDF() {
         `;
     }
 
-    reportHtml += `
-        <div class="report-footer" style="justify-content: flex-end;">
-            <div style="text-align: right;">
-                Generado automáticamente el ${endDate.toLocaleDateString('es-ES')} a las ${endDate.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}
-            </div>
-        </div>
-    `;
-
     const printContainer = document.getElementById('print-report');
     printContainer.innerHTML = reportHtml;
 
