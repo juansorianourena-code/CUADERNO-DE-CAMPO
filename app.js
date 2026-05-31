@@ -3954,7 +3954,7 @@ async function generateReportPDF() {
         const endStr = endDate.toISOString().split('T')[0];
 
         try {
-            const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=precipitation_sum&timezone=Europe%2FMadrid`);
+            const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=precipitation_sum,temperature_2m_max,temperature_2m_min&timezone=Europe%2FMadrid`);
             if (res.ok) {
                 const data = await res.json();
                 const daily = data.daily;
@@ -3963,47 +3963,52 @@ async function generateReportPDF() {
                     // Agrupar por mes
                     let monthGroups = {};
                     daily.time.forEach((dateStr, idx) => {
-                        const val = daily.precipitation_sum[idx] || 0;
-                        if (val > 0) {
-                            totalLluvia += val;
-                            const d = new Date(dateStr);
-                            const monthKey = `${d.toLocaleString('es-ES', {month:'long'})} ${d.getFullYear()}`;
-                            if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
-                            monthGroups[monthKey].push({ date: dateStr, val });
-                        }
+                        const precip = daily.precipitation_sum[idx] || 0;
+                        const tmax = daily.temperature_2m_max[idx];
+                        const tmin = daily.temperature_2m_min[idx];
+                        
+                        totalLluvia += precip;
+                        const d = new Date(dateStr);
+                        const monthKey = `${d.toLocaleString('es-ES', {month:'long'})} ${d.getFullYear()}`;
+                        if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
+                        monthGroups[monthKey].push({ date: dateStr, precip, tmax, tmin });
                     });
 
                     // Generar tablas por mes
                     Object.keys(monthGroups).forEach(mKey => {
                         const days = monthGroups[mKey];
-                        const monthTotal = days.reduce((acc, d) => acc + d.val, 0);
+                        const monthTotal = days.reduce((acc, d) => acc + d.precip, 0);
                         
                         let rows = days.map(d => `
-                            <div class="rain-day-item">
-                                <div class="rain-day-date">${d.date.split('-').slice(1).reverse().join('/')}</div>
-                                <div class="rain-day-val">${d.val.toFixed(1)} L</div>
+                            <div class="rain-day-item" style="display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 4px 0;">
+                                <div class="rain-day-date" style="font-weight: bold;">${d.date.split('-').slice(1).reverse().join('/')}</div>
+                                <div style="display: flex; gap: 15px;">
+                                    <div class="rain-day-temp" style="color: #f97316;">↑${d.tmax !== null && d.tmax !== undefined ? d.tmax.toFixed(1) : '-'}°</div>
+                                    <div class="rain-day-temp" style="color: #3b82f6;">↓${d.tmin !== null && d.tmin !== undefined ? d.tmin.toFixed(1) : '-'}°</div>
+                                    <div class="rain-day-val" style="color: ${d.precip > 0 ? '#0ea5e9' : '#999'}; width: 45px; text-align: right;">${d.precip.toFixed(1)} L</div>
+                                </div>
                             </div>
                         `).join('');
 
                         lluviaHtml += `
-                            <div class="rain-month-block">
-                                <div class="rain-month-title">
-                                    <span>🌧️ ${mKey} - ${locName}</span>
-                                    <span>Total: ${monthTotal.toFixed(1)} L/m²</span>
+                            <div class="rain-month-block" style="margin-bottom: 20px; break-inside: avoid;">
+                                <div class="rain-month-title" style="background: #f4f6f3; padding: 8px; font-weight: bold; display: flex; justify-content: space-between; border-radius: 4px;">
+                                    <span>🌡️🌧️ ${mKey} - ${locName}</span>
+                                    <span>Lluvia Total: ${monthTotal.toFixed(1)} L/m²</span>
                                 </div>
-                                <div class="rain-days-grid">${rows}</div>
+                                <div class="rain-days-grid" style="display: flex; flex-direction: column; padding: 0 5px;">${rows}</div>
                             </div>
                         `;
                     });
 
                     if (!lluviaHtml) {
-                        lluviaHtml = `<p>No se han registrado precipitaciones mayores a 0 en el periodo seleccionado.</p>`;
+                        lluviaHtml = `<p>No se han registrado datos meteorológicos en el periodo seleccionado.</p>`;
                     }
                 }
             }
         } catch(e) {
-            console.error("Error fetching rainfall for report:", e);
-            lluviaHtml = `<p style="color:red;">Error al descargar datos de lluvia de Open-Meteo.</p>`;
+            console.error("Error fetching weather for report:", e);
+            lluviaHtml = `<p style="color:red;">Error al descargar datos meteorológicos de Open-Meteo.</p>`;
         }
     }
 
