@@ -1,6 +1,8 @@
 // --- DATA STRUCTURE & STATE ---
 let state = {
     almacen: [],
+    maquinaria: [],
+    globalSettings: { laborCostPerHour: 10 },
     huerto: {
         parcelas: { "huerto-general": "Huerto Principal" },
         plantaciones: {},
@@ -687,6 +689,8 @@ function loadState() {
             // Safety checks for new properties or structures
             if (!state.currentView) state.currentView = 'almacen';
             if (!state.currentCultivoTab) state.currentCultivoTab = 'huerto';
+            if (!state.maquinaria) state.maquinaria = [];
+            if (!state.globalSettings) state.globalSettings = { laborCostPerHour: 10 };
             
             if (!state.huerto) state.huerto = {};
             if (!state.huerto.parcelas || Object.keys(state.huerto.parcelas).length === 0) {
@@ -906,6 +910,7 @@ async function fetchWeather() {
         weatherState.safeToSpray = (code < 50 && weatherState.wind < 15 && weatherState.temp < 30);
         
         renderWeather();
+        checkPredictiveAlerts(weatherState.temp, weatherState.humidity, weatherState.wind);
     } catch (err) {
         console.warn("Fallo al conectar con Open-Meteo. Usando estimación simulada.", err);
         // Fallback simulation based on selected location
@@ -916,6 +921,42 @@ async function fetchWeather() {
         weatherState.humidity = Math.floor(Math.random() * 20) + 40;
         weatherState.safeToSpray = (weatherState.wind < 15 && weatherState.temp < 30);
         renderWeather();
+        checkPredictiveAlerts(weatherState.temp, weatherState.humidity, weatherState.wind);
+    }
+}
+
+function checkPredictiveAlerts(temp, humidity, wind) {
+    if ("Notification" in window) {
+        if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+            Notification.requestPermission();
+        }
+    }
+
+    let alertTitle = null;
+    let alertBody = null;
+
+    if (temp <= 2) {
+        alertTitle = "❄️ Alerta de Helada";
+        alertBody = `La temperatura ha bajado a ${temp}°C. Riesgo grave para los cultivos.`;
+    } else if (temp >= 35) {
+        alertTitle = "🔥 Alerta de Calor Extremo";
+        alertBody = `Temperatura de ${temp}°C. Asegúrate de que el riego esté activo.`;
+    } else if (temp > 22 && humidity > 80) {
+        alertTitle = "🐛 Riesgo de Plagas (Hongos)";
+        alertBody = `Alta humedad (${humidity}%) y temperatura cálida (${temp}°C). Condiciones ideales para hongos.`;
+    } else if (wind > 30) {
+        alertTitle = "💨 Alerta de Viento Fuerte";
+        alertBody = `Viento a ${wind} km/h. Suspende los tratamientos fitosanitarios.`;
+    }
+
+    if (alertTitle && "Notification" in window && Notification.permission === "granted") {
+        new Notification(alertTitle, {
+            body: alertBody,
+            icon: '/icon.png' // Replace with proper icon if available
+        });
+    } else if (alertTitle) {
+        // Fallback to internal toast if no permission
+        showToast(`${alertTitle}: ${alertBody}`, "error");
     }
 }
 
@@ -1089,6 +1130,148 @@ function deleteProduct(productId) {
         saveState();
         renderAlmacen();
         showToast("Producto eliminado del almacén", "info");
+    }
+}
+
+// --- MAQUINARIA LOGIC ---
+function toggleAlmacenTab(tab) {
+    const pBtn = document.getElementById('tab-productos-btn');
+    const mBtn = document.getElementById('tab-maquinaria-btn');
+    const pView = document.getElementById('subview-productos');
+    const mView = document.getElementById('subview-maquinaria');
+
+    if (pBtn) pBtn.classList.remove('active');
+    if (mBtn) mBtn.classList.remove('active');
+    if (pView) pView.classList.add('hidden');
+    if (mView) mView.classList.add('hidden');
+
+    if (tab === 'productos') {
+        if (pBtn) pBtn.classList.add('active');
+        if (pView) pView.classList.remove('hidden');
+        renderAlmacen();
+    } else {
+        if (mBtn) mBtn.classList.add('active');
+        if (mView) mView.classList.remove('hidden');
+        renderMaquinaria();
+    }
+}
+
+function renderMaquinaria() {
+    const listContainer = document.getElementById('maquinaria-list');
+    if (!listContainer) return;
+    listContainer.innerHTML = '';
+
+    if (!state.maquinaria) state.maquinaria = [];
+
+    if (state.maquinaria.length === 0) {
+        listContainer.innerHTML = `
+            <div class="empty-state">
+                <i class="ph ph-tractor"></i>
+                <span>No hay maquinaria registrada.</span>
+            </div>
+        `;
+        return;
+    }
+
+    state.maquinaria.forEach(m => {
+        const isMaintenanceDue = m.hours >= m.maintHours;
+        const maintAlert = isMaintenanceDue ? `<div style="color: var(--danger); font-size: 0.75rem; font-weight: 700; margin-top: 4px;"><i class="ph-fill ph-warning-circle"></i> ¡Revisión / Mantenimiento necesario!</div>` : '';
+
+        const card = document.createElement('div');
+        card.className = "item-card";
+        if (isMaintenanceDue) card.style.borderColor = "var(--danger)";
+        
+        card.innerHTML = `
+            <div class="item-header">
+                <span class="item-title">${escapeHTML(m.name)}</span>
+            </div>
+            <div class="item-info-line">Horas de uso: <span style="font-weight: 700;">${m.hours} h</span></div>
+            <div class="item-info-line">Próx. Mantenimiento: <span>${m.maintHours} h</span></div>
+            ${maintAlert}
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; border-top: 1px dashed var(--border-color); padding-top: 8px;">
+                <div style="display: flex; gap: 4px; align-items: center;">
+                    <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.7rem; border-radius: 6px; width: auto;" onclick="addMaquinariaHours(${m.id}, 1)">+1h</button>
+                    <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.7rem; border-radius: 6px; width: auto;" onclick="addMaquinariaHours(${m.id}, 5)">+5h</button>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-warning" style="width: auto; padding: 6px 10px; font-size: 0.75rem; border-radius: 8px;" onclick="openEditMaquinariaModal(${m.id})">
+                        <i class="ph ph-pencil-simple"></i>
+                    </button>
+                    <button class="btn btn-danger" style="width: auto; padding: 6px 10px; font-size: 0.75rem; border-radius: 8px;" onclick="deleteMaquinaria(${m.id})">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        listContainer.appendChild(card);
+    });
+}
+
+function openAddMaquinariaModal() {
+    document.getElementById('modal-add-maquinaria').querySelector('.sheet-title').innerText = 'Registrar Maquinaria';
+    document.getElementById('modal-add-maquinaria').querySelector('form').reset();
+    document.getElementById('maq-id').value = '';
+    openModal('modal-add-maquinaria');
+}
+
+function openEditMaquinariaModal(id) {
+    const m = state.maquinaria.find(x => x.id === id);
+    if (!m) return;
+    document.getElementById('modal-add-maquinaria').querySelector('.sheet-title').innerText = 'Editar Maquinaria';
+    document.getElementById('maq-id').value = m.id;
+    document.getElementById('maq-name').value = m.name;
+    document.getElementById('maq-hours').value = m.hours;
+    document.getElementById('maq-maint').value = m.maintHours;
+    openModal('modal-add-maquinaria');
+}
+
+function saveMaquinaria(e) {
+    e.preventDefault();
+    const idField = document.getElementById('maq-id').value;
+    const name = document.getElementById('maq-name').value.trim();
+    const hours = parseFloat(document.getElementById('maq-hours').value) || 0;
+    const maintHours = parseFloat(document.getElementById('maq-maint').value) || 0;
+
+    if (!name) return;
+
+    if (idField) {
+        const m = state.maquinaria.find(x => x.id === parseInt(idField));
+        if (m) {
+            m.name = name;
+            m.hours = hours;
+            m.maintHours = maintHours;
+            showToast("Maquinaria actualizada", "success");
+        }
+    } else {
+        state.maquinaria.push({
+            id: Date.now(),
+            name: name,
+            hours: hours,
+            maintHours: maintHours
+        });
+        showToast("Maquinaria registrada", "success");
+    }
+
+    saveState();
+    closeModal('modal-add-maquinaria');
+    renderMaquinaria();
+}
+
+function deleteMaquinaria(id) {
+    if (confirm("¿Seguro que deseas eliminar esta maquinaria?")) {
+        state.maquinaria = state.maquinaria.filter(m => m.id !== id);
+        saveState();
+        renderMaquinaria();
+        showToast("Maquinaria eliminada", "info");
+    }
+}
+
+function addMaquinariaHours(id, amount) {
+    const m = state.maquinaria.find(x => x.id === id);
+    if (m) {
+        m.hours += amount;
+        saveState(true, false);
+        renderMaquinaria();
     }
 }
 
@@ -1356,6 +1539,7 @@ function renderHuerto() {
     renderTreatments('huerto', pId);
     checkSafetyPeriod('huerto', pId);
     renderHarvestCounters();
+    if (typeof renderHuertoHarvestHistory === 'function') renderHuertoHarvestHistory();
     renderRiego('huerto', pId);
     renderFertilizaciones('huerto', pId);
     renderPlagaAlertas('huerto', pId);
@@ -1410,10 +1594,15 @@ function renderTasks(type, parcelId) {
         const checkIcon = t.done ? "ph-fill ph-check-square" : "ph ph-square";
         const textStyle = t.done ? "text-decoration: line-through; color: var(--text-muted);" : "font-weight: 500;";
         
+        const hoursBadge = t.hours ? `<span style="margin-left: 8px; font-size: 0.7rem; background: var(--surface-variant); padding: 2px 6px; border-radius: 4px; color: var(--text-secondary);"><i class="ph ph-clock"></i> ${t.hours}h</span>` : '';
+        
         card.innerHTML = `
             <div style="display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1;" onclick="toggleTask(${t.id}, '${type}', '${parcelId}')">
                 <i class="${checkIcon}" style="font-size: 1.3rem; color: ${t.done ? 'var(--primary)' : 'var(--text-secondary)'};"></i>
-                <span style="${textStyle}">${escapeHTML(t.text)}</span>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="${textStyle}">${escapeHTML(t.text)}</span>
+                    ${hoursBadge ? `<div>${hoursBadge}</div>` : ''}
+                </div>
             </div>
             <div style="display: flex; gap: 4px;">
                 <button class="close-sheet" style="font-size: 1.1rem; color: var(--warning); cursor: pointer;" onclick="editTask(${t.id}, '${type}', '${parcelId}')">
@@ -1431,7 +1620,9 @@ function renderTasks(type, parcelId) {
 function addTask(e, type) {
     e.preventDefault();
     const inputEl = document.getElementById(`${type}-task-input`);
+    const hoursEl = document.getElementById(`${type}-task-hours`);
     const text = inputEl.value.trim();
+    const hours = parseFloat(hoursEl.value) || 0;
     if (!text) return;
 
     const parcelId = (type === 'huerto') ? state.currentHuertoParcela : state.currentOlivarParcela;
@@ -1440,11 +1631,13 @@ function addTask(e, type) {
     const newTask = {
         id: Date.now(),
         text: text,
+        hours: hours,
         done: false
     };
 
     state[type].tareas[parcelId].push(newTask);
     inputEl.value = '';
+    hoursEl.value = '';
     saveState();
     renderTasks(type, parcelId);
     showToast("Tarea añadida", "success");
@@ -1475,10 +1668,23 @@ function editTask(taskId, type, parcelId) {
         const newText = prompt("Editar tarea:", t.text);
         if (newText !== null && newText.trim() !== '') {
             t.text = newText.trim();
+            const newHours = prompt("Horas empleadas (opcional):", t.hours || 0);
+            if (newHours !== null) {
+                t.hours = parseFloat(newHours) || 0;
+            }
             saveState();
             renderTasks(type, parcelId);
             showToast("Tarea actualizada", "success");
         }
+    }
+}
+
+function updateGlobalSettings() {
+    const val = parseFloat(document.getElementById('global-labor-cost').value);
+    if (!isNaN(val) && val >= 0) {
+        state.globalSettings.laborCostPerHour = val;
+        saveState();
+        showToast("Ajustes de empresa actualizados", "success");
     }
 }
 
@@ -1946,7 +2152,55 @@ function saveProductHarvest(prod) {
     
     saveState();
     renderHarvestCounters();
+    if (typeof renderHuertoHarvestHistory === 'function') renderHuertoHarvestHistory();
     showToast("Cosecha registrada en el diario", "success");
+}
+
+function renderHuertoHarvestHistory() {
+    const listEl = document.getElementById('huerto-harvest-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    if (!state.huerto.cosechas) state.huerto.cosechas = [];
+    const list = state.huerto.cosechas.filter(c => c.parcela === state.currentHuertoParcela);
+
+    if (list.length === 0) {
+        listEl.innerHTML = `<span style="font-size: 0.8rem; color: var(--text-muted); text-align: center; display: block; padding: 10px;">No hay cosechas registradas en esta parcela.</span>`;
+        return;
+    }
+
+    list.slice().reverse().forEach(c => {
+        const item = document.createElement('div');
+        item.className = "item-card";
+        item.style.padding = "8px 12px";
+        item.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong style="color: var(--primary);">${escapeHTML(c.product)}</strong>
+                <span style="font-size:0.75rem; color:var(--text-muted);">${c.date}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+                <span style="font-size:0.85rem; color:var(--text-secondary);">Cantidad: <strong style="color:var(--text-primary);">${c.count} uds</strong></span>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary" style="width: auto; padding: 4px 8px; font-size: 0.7rem; border-radius: 6px;" onclick="showTraceabilityQR(${c.id}, 'huerto')">
+                        <i class="ph ph-qr-code"></i> Ver QR
+                    </button>
+                    <button class="btn btn-danger" style="width: auto; padding: 4px 8px; font-size: 0.7rem; border-radius: 6px;" onclick="deleteHuertoHarvest(${c.id})">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        listEl.appendChild(item);
+    });
+}
+
+function deleteHuertoHarvest(harvestId) {
+    if (confirm("¿Estás seguro de que quieres eliminar este registro de cosecha?")) {
+        state.huerto.cosechas = state.huerto.cosechas.filter(c => c.id !== harvestId);
+        saveState();
+        renderHuertoHarvestHistory();
+        showToast("Registro de cosecha eliminado", "info");
+    }
 }
 
 // --- OLIVE HARVEST (Yield calculator) ---
@@ -2027,46 +2281,104 @@ function renderOlivarHarvestHistory() {
                 <strong style="color: var(--secondary);">${c.kg.toLocaleString()} Kg aceituna</strong>
                 <span style="font-size:0.75rem; color:var(--text-muted);">${c.date}</span>
             </div>
-            <div style="display:flex; justify-content:space-between; font-size:0.8rem; color: var(--text-secondary); margin-top:2px;">
-                <span>Rendimiento: <strong>${c.yield}%</strong></span>
-                <span>Aceite: <strong style="color:var(--text-primary);">${c.oil.toLocaleString()} L</strong></span>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem; color: var(--text-secondary); gap: 10px;">
+                    <span>Rendimiento: <strong>${c.yield}%</strong></span>
+                    <span>Aceite: <strong style="color:var(--text-primary);">${c.oil.toLocaleString()} L</strong></span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary" style="width: auto; padding: 4px 8px; font-size: 0.7rem; border-radius: 6px;" onclick="showTraceabilityQR(${c.id}, 'olivar')">
+                        <i class="ph ph-qr-code"></i> Ver QR
+                    </button>
+                    <button class="btn btn-danger" style="width: auto; padding: 4px 8px; font-size: 0.7rem; border-radius: 6px;" onclick="deleteOlivarHarvest(${c.id})">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                </div>
             </div>
         `;
         listEl.appendChild(item);
     });
 }
 
-// --- CROQUIS INTERACTIVO ---
-// --- CROQUIS INTERACTIVO ---
+// --- TRAZABILIDAD (QR) ---
+function showTraceabilityQR(harvestId, type) {
+    const container = document.getElementById('qr-code-container');
+    const infoText = document.getElementById('qr-info-text');
+    container.innerHTML = '';
+    
+    let c = null;
+    let parcelaName = '';
+    let details = '';
+
+    if (type === 'huerto') {
+        c = state.huerto.cosechas.find(x => x.id === harvestId);
+        if (c) {
+            parcelaName = state.huerto.parcelas[c.parcela] || 'Parcela Desconocida';
+            details = `Producto: ${c.product}\nCantidad: ${c.count} uds`;
+        }
+    } else {
+        c = state.olivar.cosechas.find(x => x.id === harvestId);
+        if (c) {
+            parcelaName = state.olivar.parcelas[c.parcela] || 'Finca Desconocida';
+            details = `Aceite: ${c.oil} L\nAceituna: ${c.kg} Kg\nRendimiento: ${c.yield}%`;
+        }
+    }
+
+    if (!c) return;
+
+    // Build the string to be encoded in the QR code
+    const qrData = `🚜 Cuaderno de Campo\n📍 Origen: ${parcelaName}\n📅 Fecha: ${c.date}\n📦 ${details}\n✅ Cultivo 100% Trazable`;
+
+    // Generate the QR code using the QRCode instance from the CDN script
+    new QRCode(container, {
+        text: qrData,
+        width: 180,
+        height: 180,
+        colorDark : "#1a1a1a",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.M
+    });
+
+    // Also show it as text below the QR for the user
+    infoText.innerText = qrData;
+
+    openModal('modal-qr-view');
+}
+
+function deleteOlivarHarvest(harvestId) {
+    if (confirm("¿Estás seguro de que quieres eliminar este registro de cosecha de aceituna?")) {
+        state.olivar.cosechas = state.olivar.cosechas.filter(c => c.id !== harvestId);
+        saveState();
+        renderOlivarHarvestHistory();
+        showToast("Registro de cosecha eliminado", "info");
+    }
+}
+
+// --- MAPA INTERACTIVO (LEAFLET) ---
+let leafletMap = null;
+let currentPolygon = null;
+let drawnPolygons = {}; // parcelId -> polygon layer
+let isDrawingMode = false;
+let currentDrawingPoints = [];
+
 function renderCroquis() {
-    // Populate select
-    const select = document.getElementById('croquis-parcela-select');
+    // We repurpose this function name for the init logic since it's called by navigation
+    initLeafletMap();
+}
+
+function initLeafletMap() {
+    const select = document.getElementById('map-parcela-select');
     if (!select) return;
 
-    // --- FIX: Read the CURRENT select value BEFORE rebuilding the options ---
-    // If the select already has a value (user just changed it), preserve it.
-    // Otherwise fall back to the saved state.
-    const userSelectedValue = select.value || state.currentCroquisParcela;
-
+    // Populate select
     select.innerHTML = '';
-
-    // Join parcels from Huerto and Olivar
     const huertoKeys = Object.keys(state.huerto.parcelas);
     const olivarKeys = Object.keys(state.olivar.parcelas);
-
-    // Collect all valid keys to validate the selection
-    const allKeys = [...huertoKeys, ...olivarKeys];
-
-    // Determine which parcel to show: prefer the user's live selection, then saved state
-    const targetParcel = allKeys.includes(userSelectedValue)
-        ? userSelectedValue
-        : (allKeys.includes(state.currentCroquisParcela) ? state.currentCroquisParcela : allKeys[0]);
-
+    
     huertoKeys.forEach(k => {
         const opt = document.createElement('option');
         opt.value = k;
         opt.innerText = `Huerto: ${state.huerto.parcelas[k]}`;
-        opt.selected = (targetParcel === k);
         select.appendChild(opt);
     });
 
@@ -2074,130 +2386,113 @@ function renderCroquis() {
         const opt = document.createElement('option');
         opt.value = k;
         opt.innerText = `Olivar: ${state.olivar.parcelas[k]}`;
-        opt.selected = (targetParcel === k);
         select.appendChild(opt);
     });
 
-    // Draw Grid
-    const parcelId = targetParcel;
-    if (!parcelId) return;
-    
-    state.currentCroquisParcela = parcelId;
-    
-    // Load or initialize croquis dimensions
-    if (!state.croquisDimensions) state.croquisDimensions = {};
-    if (!state.croquisDimensions[parcelId]) {
-        state.croquisDimensions[parcelId] = { rows: 4, cols: 4 };
-    }
-    const dims = state.croquisDimensions[parcelId];
-
-    // Set values in inputs
-    const rowsInput = document.getElementById('croquis-rows-input');
-    const colsInput = document.getElementById('croquis-cols-input');
-    if (rowsInput) rowsInput.value = dims.rows;
-    if (colsInput) colsInput.value = dims.cols;
-
-    // Ensure grid cells match the configuration rows * cols
-    const targetCellCount = dims.rows * dims.cols;
-    if (!state.croquis[parcelId]) {
-        state.croquis[parcelId] = [];
-    }
-    
-    const isOlivar = parcelId.startsWith("olivar");
-    const currentCells = state.croquis[parcelId];
-    
-    // Safe adjustment preserving existing states
-    if (currentCells.length !== targetCellCount) {
-        const newCells = [];
-        for (let i = 1; i <= targetCellCount; i++) {
-            const existing = currentCells[i - 1];
-            if (existing) {
-                newCells.push({
-                    id: i,
-                    label: isOlivar ? `Olivo ${i}` : `Zona ${i}`,
-                    state: existing.state
-                });
-            } else {
-                newCells.push({
-                    id: i,
-                    label: isOlivar ? `Olivo ${i}` : `Zona ${i}`,
-                    state: "normal"
-                });
+    // Init Map only once
+    if (!leafletMap) {
+        // Default center (Spain)
+        leafletMap = L.map('map-container').setView([39.0, -2.0], 6);
+        
+        // Use Esri World Imagery (Satellite)
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri'
+        }).addTo(leafletMap);
+        
+        // Load saved polygons from state
+        if (!state.mapPolygons) state.mapPolygons = {};
+        
+        // Click to draw logic
+        leafletMap.on('click', function(e) {
+            if (!isDrawingMode) return;
+            currentDrawingPoints.push([e.latlng.lat, e.latlng.lng]);
+            
+            if (currentPolygon) {
+                leafletMap.removeLayer(currentPolygon);
             }
-        }
-        state.croquis[parcelId] = newCells;
+            
+            currentPolygon = L.polygon(currentDrawingPoints, {color: '#4caf50', weight: 3}).addTo(leafletMap);
+        });
+
+        // Delay invalidation size to ensure DOM is ready
+        setTimeout(() => {
+            leafletMap.invalidateSize();
+            drawSavedPolygons();
+            centerMapOnParcel();
+        }, 300);
+    } else {
+        leafletMap.invalidateSize();
+        centerMapOnParcel();
+    }
+}
+
+function startDrawingPolygon() {
+    isDrawingMode = true;
+    currentDrawingPoints = [];
+    if (currentPolygon) {
+        leafletMap.removeLayer(currentPolygon);
+        currentPolygon = null;
+    }
+    showToast("Toca el mapa para dibujar los vértices", "info");
+    document.getElementById('map-container').style.cursor = 'crosshair';
+}
+
+function clearCurrentPolygon() {
+    isDrawingMode = false;
+    currentDrawingPoints = [];
+    if (currentPolygon) {
+        leafletMap.removeLayer(currentPolygon);
+        currentPolygon = null;
+    }
+    document.getElementById('map-container').style.cursor = '';
+    showToast("Dibujo borrado", "info");
+}
+
+function saveMapPolygon() {
+    const parcelId = document.getElementById('map-parcela-select').value;
+    if (!parcelId) return;
+
+    if (!isDrawingMode || currentDrawingPoints.length < 3) {
+        showToast("Debes dibujar al menos 3 puntos", "error");
+        return;
     }
 
-    const gridEl = document.getElementById('croquis-grid');
-    if (!gridEl) return;
-    gridEl.innerHTML = '';
+    if (!state.mapPolygons) state.mapPolygons = {};
+    state.mapPolygons[parcelId] = currentDrawingPoints;
+    saveState();
+
+    isDrawingMode = false;
+    document.getElementById('map-container').style.cursor = '';
+    showToast("Polígono guardado", "success");
+    drawSavedPolygons();
+}
+
+function drawSavedPolygons() {
+    if (!state.mapPolygons) return;
     
-    // Apply dynamic column template
-    gridEl.style.gridTemplateColumns = `repeat(${dims.cols}, 1fr)`;
+    // Clear old layers
+    Object.values(drawnPolygons).forEach(layer => leafletMap.removeLayer(layer));
+    drawnPolygons = {};
 
-    state.croquis[parcelId].forEach(cell => {
-        const cellEl = document.createElement('div');
-        cellEl.className = `croquis-cell ${cell.state}`;
-        
-        let iconClass = "ph-fill ph-plant";
-        if (parcelId.startsWith("olivar")) {
-            iconClass = "ph-fill ph-tree";
+    Object.keys(state.mapPolygons).forEach(parcelId => {
+        const points = state.mapPolygons[parcelId];
+        if (points && points.length >= 3) {
+            const polygon = L.polygon(points, {color: '#4caf50', fillColor: '#4caf50', fillOpacity: 0.3}).addTo(leafletMap);
+            polygon.bindTooltip(parcelId.startsWith('huerto') ? state.huerto.parcelas[parcelId] : state.olivar.parcelas[parcelId]);
+            drawnPolygons[parcelId] = polygon;
         }
-        if (cell.state === "plaga") {
-            iconClass = "ph-fill ph-bug";
-        } else if (cell.state === "pending") {
-            iconClass = "ph-fill ph-warning-octagon";
-        } else if (cell.state === "treated") {
-            iconClass = "ph-fill ph-drop-half-bottom";
-        }
-
-        cellEl.innerHTML = `
-            <i class="${iconClass}"></i>
-            <span>${cell.label}</span>
-        `;
-        
-        cellEl.onclick = () => toggleCellState(parcelId, cell.id);
-        gridEl.appendChild(cellEl);
     });
 }
 
-function adjustCroquisGridSize() {
-    const parcelId = state.currentCroquisParcela;
-    if (!parcelId) return;
-
-    const rowsInput = document.getElementById('croquis-rows-input');
-    const colsInput = document.getElementById('croquis-cols-input');
-    if (!rowsInput || !colsInput) return;
-
-    const rows = parseInt(rowsInput.value) || 4;
-    const cols = parseInt(colsInput.value) || 4;
-
-    if (rows < 1 || cols < 1) {
-        showToast("Las filas y columnas deben ser mínimo 1", "error");
+function centerMapOnParcel() {
+    const parcelId = document.getElementById('map-parcela-select').value;
+    if (!state.mapPolygons || !state.mapPolygons[parcelId]) {
+        showToast("No hay polígono guardado para esta parcela", "info");
         return;
     }
-
-    if (rows > 25 || cols > 25) {
-        showToast("Máximo 25 filas o columnas para un correcto rendimiento", "error");
-        return;
-    }
-
-    if (!state.croquisDimensions) state.croquisDimensions = {};
-    state.croquisDimensions[parcelId] = { rows, cols };
-
-    saveState();
-    renderCroquis();
-    showToast(`Cuadrícula ajustada a ${rows}x${cols}`, "success");
-}
-
-function toggleCellState(parcelId, cellId) {
-    const cell = state.croquis[parcelId].find(c => c.id === cellId);
-    if (cell) {
-        const states = ["normal", "treated", "pending", "plaga"];
-        const nextIdx = (states.indexOf(cell.state) + 1) % states.length;
-        cell.state = states[nextIdx];
-        saveState();
-        renderCroquis();
+    const polygon = drawnPolygons[parcelId];
+    if (polygon) {
+        leafletMap.fitBounds(polygon.getBounds());
     }
 }
 
@@ -2234,26 +2529,93 @@ function calculateDosage() {
     resultEl.innerHTML = `${result.toFixed(2)} <span style="font-size: 1.2rem; font-weight: 700; color: var(--text-secondary);">${outputUnit}</span>`;
 }
 
-// --- DIARIO / OBSERVACIONES LOGIC ---
+// --- AI DIAGNOSIS ---
+function analyzeImageWithAI(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // UI Updates
+    document.getElementById('ai-upload-section').classList.add('hidden');
+    document.getElementById('ai-loading-section').classList.remove('hidden');
+    document.getElementById('ai-result-section').classList.add('hidden');
+
+    // Simulate AI processing time (e.g. 2.5 seconds)
+    setTimeout(() => {
+        document.getElementById('ai-loading-section').classList.add('hidden');
+        document.getElementById('ai-result-section').classList.remove('hidden');
+
+        // Mock AI Result based on random probability for demo purposes
+        const rand = Math.random();
+        const titleEl = document.getElementById('ai-result-title');
+        const descEl = document.getElementById('ai-result-desc');
+
+        if (rand > 0.6) {
+            titleEl.innerText = "Planta Sana (92% Confianza)";
+            titleEl.style.color = "var(--primary)";
+            descEl.innerText = "No se han detectado signos visibles de plagas o enfermedades en la imagen proporcionada. Se recomienda continuar con el cuidado habitual.";
+        } else if (rand > 0.3) {
+            titleEl.innerText = "Posible Oídio (78% Confianza)";
+            titleEl.style.color = "var(--warning)";
+            descEl.innerText = "Se aprecian manchas polvorientas blancas. Recomendamos aplicar un tratamiento fungicida a base de azufre preventivo.";
+        } else {
+            titleEl.innerText = "Ataque de Pulgón (85% Confianza)";
+            titleEl.style.color = "var(--danger)";
+            descEl.innerText = "Detectada presencia de pulgones en las hojas. Recomendamos tratar con jabón potásico o insecticida específico urgentemente.";
+        }
+    }, 2500);
+}
 let photoCycleIndex = 0;
 const photosKeys = Object.keys(MOCK_PHOTOS);
 
-function triggerPhotoMock() {
-    const photoKey = photosKeys[photoCycleIndex];
-    state.selectedMockPhoto = MOCK_PHOTOS[photoKey].url;
-    
-    // UI update
-    const previewContainer = document.getElementById('photo-preview-container');
-    const previewImg = document.getElementById('photo-preview-img');
-    const textEl = document.getElementById('photo-upload-text');
+function handleRealPhotoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
 
-    previewImg.src = state.selectedMockPhoto;
-    previewContainer.classList.remove('hidden');
-    textEl.innerHTML = `<i class="ph ph-arrow-counter-clockwise"></i> Foto: ${MOCK_PHOTOS[photoKey].label}`;
-    
-    // Cycle to next one for subsequent taps
-    photoCycleIndex = (photoCycleIndex + 1) % photosKeys.length;
-    showToast("Imagen simulada cargada", "info");
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            // Compress the image using canvas
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Get base64 string
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            state.selectedRealPhoto = dataUrl;
+
+            // UI update
+            const previewContainer = document.getElementById('photo-preview-container');
+            const previewImg = document.getElementById('photo-preview-img');
+            const textEl = document.getElementById('photo-upload-text');
+
+            previewImg.src = dataUrl;
+            previewContainer.classList.remove('hidden');
+            textEl.innerHTML = `<i class="ph ph-check-circle"></i> Foto adjuntada`;
+            showToast("Foto cargada correctamente", "success");
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
 }
 
 function renderDiario() {
@@ -2310,18 +2672,21 @@ function saveJournalEntry(e) {
         id: Date.now(),
         text: text,
         date: dateStr,
-        photo: state.selectedMockPhoto // Can be null if they didn't tap mock photo
+        photo: state.selectedRealPhoto || null
     };
 
     state.diario.push(newEntry);
     
-    // Reset inputs
-    textEl.value = '';
-    state.selectedMockPhoto = null;
-    document.getElementById('photo-preview-container').classList.add('hidden');
-    document.getElementById('photo-upload-text').innerText = "Simular foto de observación";
-
     saveState();
+    
+    // UI feedback
+    textEl.value = '';
+    state.selectedRealPhoto = null;
+    document.getElementById('photo-preview-container').classList.add('hidden');
+    document.getElementById('photo-preview-img').src = '';
+    document.getElementById('photo-upload-text').innerText = 'Tomar o subir foto';
+    document.getElementById('real-photo-input').value = '';
+
     renderDiario();
     showToast("Observación guardada en el diario", "success");
 }
@@ -2365,6 +2730,19 @@ function openModal(modalId) {
 
 function closeModal(modalId) {
     document.getElementById(modalId).classList.remove('active');
+    
+    // Reset specific modals
+    if (modalId === 'modal-ai-diagnosis') {
+        const uploadSec = document.getElementById('ai-upload-section');
+        const loadSec = document.getElementById('ai-loading-section');
+        const resSec = document.getElementById('ai-result-section');
+        const input = document.getElementById('ai-photo-input');
+        
+        if (uploadSec) uploadSec.classList.remove('hidden');
+        if (loadSec) loadSec.classList.add('hidden');
+        if (resSec) resSec.classList.add('hidden');
+        if (input) input.value = '';
+    }
 }
 
 // --- DATA EXPORT & IMPORT (Backup) ---
@@ -3501,6 +3879,18 @@ function renderEconomia() {
             (plantings || []).forEach(p => { totalExpenses += p.qty * p.cost; });
         });
     }
+
+    // Coste Mano de Obra (Labor Costs)
+    const laborCostRate = state.globalSettings ? state.globalSettings.laborCostPerHour : 10;
+    ['huerto', 'olivar'].forEach(type => {
+        Object.values(state[type].tareas || {}).forEach(tasks => {
+            (tasks || []).forEach(t => {
+                if (t.hours) {
+                    totalExpenses += t.hours * laborCostRate;
+                }
+            });
+        });
+    });
 
     let totalIncome = 0;
     state.huerto.cosechas.forEach(h => { totalIncome += h.count * 0.40; });

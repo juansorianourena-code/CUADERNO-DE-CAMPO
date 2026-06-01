@@ -24,6 +24,13 @@
     <link rel="stylesheet" href="phosphor-regular.css">
     <link rel="stylesheet" href="phosphor-fill.css">
     
+    <!-- Leaflet Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- QRCode.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WU1yM/RVIL/7qj4E2iOIfx2t/A1aC1rS0k1f3L0xN4g4fT0C3zQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
     <!-- Stylesheet -->
     <link rel="stylesheet" href="styles.css?v=21">
 </head>
@@ -61,18 +68,36 @@
 
             <!-- VIEW: ALMACÉN (Inventario) -->
             <section id="view-almacen" class="view-content">
-
-                <div class="search-bar">
-                    <div class="input-group" style="flex: 1; margin: 0;">
-                        <input type="text" id="almacen-search" class="form-input" placeholder="Buscar producto..." oninput="renderAlmacen()">
-                    </div>
-                    <button class="btn" style="width: 48px; height: 48px; padding: 0; border-radius: var(--radius-sm);" onclick="openAddProductModal()" title="Añadir Producto">
-                        <i class="ph ph-plus" style="font-size: 1.4rem;"></i>
-                    </button>
+                <div class="tab-selector" style="margin-bottom: 15px;">
+                    <button class="tab-btn active" id="tab-productos-btn" onclick="toggleAlmacenTab('productos')">PRODUCTOS</button>
+                    <button class="tab-btn" id="tab-maquinaria-btn" onclick="toggleAlmacenTab('maquinaria')"><i class="ph ph-tractor" style="vertical-align: middle; margin-right: 4px;"></i>MAQUINARIA</button>
                 </div>
 
-                <div id="almacen-list" class="item-grid">
-                    <!-- Se inyecta por JS -->
+                <div id="subview-productos">
+                    <div class="search-bar">
+                        <div class="input-group" style="flex: 1; margin: 0;">
+                            <input type="text" id="almacen-search" class="form-input" placeholder="Buscar producto..." oninput="renderAlmacen()">
+                        </div>
+                        <button class="btn" style="width: 48px; height: 48px; padding: 0; border-radius: var(--radius-sm);" onclick="openAddProductModal()" title="Añadir Producto">
+                            <i class="ph ph-plus" style="font-size: 1.4rem;"></i>
+                        </button>
+                    </div>
+
+                    <div id="almacen-list" class="item-grid">
+                        <!-- Se inyecta por JS -->
+                    </div>
+                </div>
+
+                <div id="subview-maquinaria" class="hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <span class="card-title" style="margin:0;"><i class="ph ph-tractor"></i> Parque de Maquinaria</span>
+                        <button class="btn" style="width: auto; padding: 6px 12px; font-size: 0.75rem; border-radius: 8px;" onclick="openAddMaquinariaModal()">
+                            <i class="ph ph-plus"></i> Añadir Máquina
+                        </button>
+                    </div>
+                    <div id="maquinaria-list" class="item-grid" style="gap: 12px;">
+                        <!-- Se inyecta por JS -->
+                    </div>
                 </div>
             </section>
 
@@ -116,8 +141,9 @@
                     <!-- Tareas del Huerto -->
                     <div class="card">
                         <span class="card-title"><i class="ph ph-check-square"></i> Tareas de la Parcela</span>
-                        <form onsubmit="addTask(event, 'huerto')" style="display: flex; gap: 8px; margin-bottom: 12px;">
-                            <input type="text" id="huerto-task-input" class="form-input" placeholder="Nueva tarea..." required>
+                        <form onsubmit="addTask(event, 'huerto')" style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+                            <input type="text" id="huerto-task-input" class="form-input" style="flex: 2;" placeholder="Nueva tarea..." required>
+                            <input type="number" id="huerto-task-hours" class="form-input" style="flex: 1;" placeholder="Horas" min="0" step="0.5">
                             <button type="submit" class="btn" style="width: 44px; height: 44px; padding: 0;"><i class="ph ph-plus"></i></button>
                         </form>
                         <div id="huerto-task-list" class="item-grid" style="gap: 8px;">
@@ -128,6 +154,14 @@
                     <!-- Contadores Dinámicos de Cosecha -->
                     <div class="card" id="huerto-harvest-container">
                         <!-- Inyectado por JS -->
+                    </div>
+
+                    <!-- Historial de Cosechas (Huerto) -->
+                    <div class="card">
+                        <span class="card-title"><i class="ph ph-list-bullets"></i> Historial de Cosechas</span>
+                        <div id="huerto-harvest-list" class="item-grid" style="margin-top: 10px;">
+                            <!-- Histórico de cosechas inyectado -->
+                        </div>
                     </div>
 
                     <!-- Historial de Tratamientos -->
@@ -184,8 +218,9 @@
                     <!-- Tareas del Olivar -->
                     <div class="card">
                         <span class="card-title"><i class="ph ph-check-square"></i> Tareas de la Finca</span>
-                        <form onsubmit="addTask(event, 'olivar')" style="display: flex; gap: 8px; margin-bottom: 12px;">
-                            <input type="text" id="olivar-task-input" class="form-input" placeholder="Nueva tarea..." required>
+                        <form onsubmit="addTask(event, 'olivar')" style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+                            <input type="text" id="olivar-task-input" class="form-input" style="flex: 2;" placeholder="Nueva tarea..." required>
+                            <input type="number" id="olivar-task-hours" class="form-input" style="flex: 1;" placeholder="Horas" min="0" step="0.5">
                             <button type="submit" class="btn" style="width: 44px; height: 44px; padding: 0;"><i class="ph ph-plus"></i></button>
                         </form>
                         <div id="olivar-task-list" class="item-grid" style="gap: 8px;">
@@ -265,43 +300,28 @@
                 </div>
             </section>
 
-            <!-- VIEW: CROQUIS INTERACTIVO -->
+            <!-- VIEW: MAPA INTERACTIVO (LEAFLET) -->
             <section id="view-croquis" class="view-content hidden">
-                <div class="card">
-                    <span class="card-title"><i class="ph ph-grid-four"></i> Croquis de Parcelas</span>
-                    <p class="card-subtitle">Control táctil del estado del terreno por sectores o árboles.</p>
+                <div class="card" style="display: flex; flex-direction: column; height: 100%;">
+                    <span class="card-title"><i class="ph ph-map-trifold"></i> Mapa de Parcelas</span>
+                    <p class="card-subtitle">Visualiza y dibuja los límites de tus parcelas sobre el satélite.</p>
 
                     <div class="input-group" style="margin-bottom: 12px;">
-                        <label class="input-label" for="croquis-parcela-select">Selecciona Terreno</label>
-                        <select id="croquis-parcela-select" class="form-select" onchange="renderCroquis()">
+                        <label class="input-label" for="map-parcela-select">Selecciona Parcela para centrar</label>
+                        <select id="map-parcela-select" class="form-select" onchange="centerMapOnParcel()">
                             <!-- Inyectado por JS -->
                         </select>
                     </div>
 
-                    <div style="display: flex; gap: 10px; align-items: flex-end; margin-bottom: 15px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px;">
-                        <div style="flex: 1;">
-                            <label class="input-label" style="font-size: 0.7rem; margin-bottom: 4px;">Filas</label>
-                            <input type="number" id="croquis-rows-input" class="form-input" style="padding: 8px; font-size: 0.75rem; margin: 0;" min="1" max="20" value="4">
-                        </div>
-                        <div style="flex: 1;">
-                            <label class="input-label" style="font-size: 0.7rem; margin-bottom: 4px;">Columnas</label>
-                            <input type="number" id="croquis-cols-input" class="form-input" style="padding: 8px; font-size: 0.75rem; margin: 0;" min="1" max="20" value="4">
-                        </div>
-                        <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.75rem; border-radius: 8px; font-weight: 700; width: auto;" onclick="adjustCroquisGridSize()">
-                            <i class="ph ph-grid-four"></i> Ajustar
-                        </button>
+                    <div id="map-container" style="flex: 1; min-height: 400px; border-radius: var(--radius-md); border: 1px solid var(--border-color); overflow: hidden; position: relative;">
+                        <!-- El mapa de Leaflet se inicializa aquí -->
                     </div>
-
-                    <div class="croquis-grid" id="croquis-grid">
-                        <!-- Cuadrícula interactiva -->
+                    
+                    <div style="display: flex; gap: 8px; margin-top: 15px;">
+                        <button class="btn btn-secondary" style="flex: 1; font-size: 0.8rem;" onclick="startDrawingPolygon()"><i class="ph ph-bounding-box"></i> Dibujar Polígono</button>
+                        <button class="btn btn-danger" style="flex: 1; font-size: 0.8rem;" onclick="clearCurrentPolygon()"><i class="ph ph-eraser"></i> Borrar</button>
                     </div>
-
-                    <div class="croquis-legend">
-                        <div class="legend-item"><div class="legend-color" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color);"></div> Normal</div>
-                        <div class="legend-item"><div class="legend-color" style="background: var(--primary);"></div> Tratado</div>
-                        <div class="legend-item"><div class="legend-color" style="background: var(--warning);"></div> Tarea Pendiente</div>
-                        <div class="legend-item"><div class="legend-color" style="background: var(--danger);"></div> Plaga</div>
-                    </div>
+                    <button class="btn" style="margin-top: 8px;" onclick="saveMapPolygon()"><i class="ph ph-floppy-disk"></i> Guardar Mapa</button>
                 </div>
             </section>
 
@@ -362,11 +382,12 @@
                             <textarea id="journal-text-input" class="form-textarea" placeholder="Escribe lo que has detectado o hecho hoy..." required></textarea>
                         </div>
 
-                        <!-- Carga de Imagen Simulada -->
-                        <div class="image-upload-btn" id="photo-upload-trigger" onclick="triggerPhotoMock()">
+                        <!-- Carga de Imagen Real -->
+                        <div class="image-upload-btn" id="photo-upload-trigger" onclick="document.getElementById('real-photo-input').click()">
                             <i class="ph ph-camera"></i>
-                            <span id="photo-upload-text">Simular foto de observación</span>
+                            <span id="photo-upload-text">Tomar o subir foto</span>
                         </div>
+                        <input type="file" id="real-photo-input" accept="image/*" capture="environment" style="display: none;" onchange="handleRealPhotoUpload(event)">
                         <div id="photo-preview-container" class="journal-photo-placeholder hidden" style="height: 120px; margin-bottom: 12px;">
                             <img id="photo-preview-img" src="" alt="Vista previa">
                         </div>
@@ -417,6 +438,14 @@
                             <i class="ph-fill ph-warning-octagon"></i> <span id="weather-extreme-text"></span>
                         </span>
                     </div>
+                </div>
+
+                <!-- Botón IA (Diagnóstico de plagas) -->
+                <div class="card" style="background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(34, 197, 94, 0.05)); border-color: rgba(76, 175, 80, 0.3); text-align: center; padding: 15px;">
+                    <i class="ph-fill ph-robot" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 8px;"></i>
+                    <h3 style="font-size: 1rem; color: var(--text-primary); margin-bottom: 4px;">Diagnóstico por IA</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px;">Identifica plagas y enfermedades subiendo una foto.</p>
+                    <button class="btn" style="width: 100%;" onclick="openModal('modal-ai-diagnosis')">Iniciar Diagnóstico</button>
                 </div>
 
                 <!-- Lluvia / Clima -->
@@ -526,6 +555,15 @@
                         <span class="card-title"><i class="ph ph-file-pdf"></i> Exportar Informe</span>
                         <p class="card-subtitle">Genera un PDF con el resumen del almacén, balance económico y últimas anotaciones del diario.</p>
                         <button class="btn" onclick="exportToPDF()" style="margin-top: 8px;"><i class="ph ph-printer"></i> Exportar PDF</button>
+                    </div>
+
+                    <!-- Ajustes de Empresa -->
+                    <div class="card">
+                        <span class="card-title"><i class="ph ph-buildings"></i> Ajustes de Empresa</span>
+                        <div class="input-group" style="margin-top: 10px;">
+                            <label class="input-label" for="global-labor-cost">Coste de Mano de Obra (€/Hora)</label>
+                            <input type="number" id="global-labor-cost" class="form-input" value="10" step="0.5" min="0" onchange="updateGlobalSettings()">
+                        </div>
                     </div>
 
                     <!-- Sincronización Local y Seguridad -->
@@ -974,6 +1012,75 @@
                         </div>
                     </div>
                     <button class="btn" onclick="generateReportPDF()"><i class="ph ph-file-pdf"></i> Generar PDF e Imprimir</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: VIEW QR -->
+        <div id="modal-qr-view" class="action-sheet-overlay" onclick="closeModal('modal-qr-view')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title"><i class="ph ph-qr-code"></i> Trazabilidad</span>
+                    <button class="close-sheet" onclick="closeModal('modal-qr-view')"><i class="ph ph-x"></i></button>
+                </div>
+                <div style="padding: 15px; text-align: center; background: white; border-radius: 12px; margin-top: 10px;">
+                    <div id="qr-code-container" style="display: flex; justify-content: center; margin-bottom: 15px;"></div>
+                    <p style="font-size: 0.8rem; color: #333; margin: 0; text-align: left;" id="qr-info-text"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: ADD MAQUINARIA -->
+        <div id="modal-add-maquinaria" class="action-sheet-overlay" onclick="closeModal('modal-add-maquinaria')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title">Registrar Maquinaria</span>
+                    <button class="close-sheet" onclick="closeModal('modal-add-maquinaria')"><i class="ph ph-x"></i></button>
+                </div>
+                <form onsubmit="saveMaquinaria(event)">
+                    <input type="hidden" id="maq-id">
+                    <div class="input-group">
+                        <label class="input-label" for="maq-name">Nombre / Modelo</label>
+                        <input type="text" id="maq-name" class="form-input" placeholder="Ej: Tractor John Deere" required>
+                    </div>
+                    <div class="inline-fields">
+                        <div class="input-group">
+                            <label class="input-label" for="maq-hours">Horas Uso</label>
+                            <input type="number" id="maq-hours" class="form-input" placeholder="Ej: 1500" required>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="maq-maint">Próx. Rev. (Horas)</label>
+                            <input type="number" id="maq-maint" class="form-input" placeholder="Ej: 1600" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn"><i class="ph ph-floppy-disk"></i> Guardar Máquina</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL: AI DIAGNOSIS -->
+        <div id="modal-ai-diagnosis" class="action-sheet-overlay" onclick="closeModal('modal-ai-diagnosis')">
+            <div class="action-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <span class="sheet-title"><i class="ph ph-robot"></i> Asistente de Plagas (IA)</span>
+                    <button class="close-sheet" onclick="closeModal('modal-ai-diagnosis')"><i class="ph ph-x"></i></button>
+                </div>
+                <div id="ai-upload-section" style="text-align: center; margin: 15px 0;">
+                    <i class="ph-fill ph-camera" style="font-size: 3rem; color: var(--primary); cursor: pointer;" onclick="document.getElementById('ai-photo-input').click()"></i>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 10px;">Sube una foto de la planta para que la IA la analice.</p>
+                    <input type="file" id="ai-photo-input" accept="image/*" capture="environment" style="display: none;" onchange="analyzeImageWithAI(event)">
+                </div>
+                <div id="ai-loading-section" class="hidden" style="text-align: center; margin: 15px 0;">
+                    <div class="loading-spinner" style="margin: 15px auto; width: 30px; height: 30px; border: 3px solid rgba(75, 96, 67, 0.2); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 10px;">Analizando imagen...</p>
+                </div>
+                <div id="ai-result-section" class="hidden" style="margin: 15px 0;">
+                    <div class="card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color);">
+                        <strong id="ai-result-title" style="display: block; color: var(--primary); font-size: 1.1rem; margin-bottom: 5px;"></strong>
+                        <p id="ai-result-desc" style="font-size: 0.85rem; color: var(--text-secondary);"></p>
+                    </div>
+                    <button class="btn" style="margin-top: 15px; width: 100%;" onclick="closeModal('modal-ai-diagnosis')">Entendido</button>
                 </div>
             </div>
         </div>
