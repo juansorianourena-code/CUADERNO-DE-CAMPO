@@ -2371,6 +2371,119 @@ function showTraceabilityQR(harvestId, type) {
     }
 }
 
+function printQRLabel() {
+    try {
+        const canvas = document.querySelector('#qr-code-container canvas');
+        const infoText = document.getElementById('qr-info-text');
+        
+        if (!canvas) {
+            showToast("No hay ningún código QR para imprimir", "error");
+            return;
+        }
+
+        const qrImageUrl = canvas.toDataURL("image/png");
+        const textContent = infoText ? infoText.innerText : '';
+        
+        // Clean formatting of the lines for the label (with proper escaping)
+        const lines = textContent.split('\n')
+            .filter(line => line.trim().length > 0)
+            .map(line => `<div class="label-line">${escapeHTML(line)}</div>`)
+            .join('');
+
+        const labelHTML = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Etiqueta de Trazabilidad</title>
+                <style>
+                    @page {
+                        size: auto;
+                        margin: 0;
+                    }
+                    body {
+                        font-family: 'Montserrat', Arial, sans-serif;
+                        margin: 0;
+                        padding: 15px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        background-color: #ffffff;
+                    }
+                    .label-card {
+                        border: 2px solid #1a1a1a;
+                        border-radius: 8px;
+                        padding: 15px;
+                        width: 280px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        background-color: #ffffff;
+                        box-sizing: border-box;
+                    }
+                    .info-title {
+                        font-size: 13px;
+                        font-weight: 800;
+                        text-transform: uppercase;
+                        margin-bottom: 12px;
+                        border-bottom: 2px solid #1a1a1a;
+                        padding-bottom: 4px;
+                        width: 100%;
+                        text-align: center;
+                        letter-spacing: 0.5px;
+                    }
+                    .qr-img {
+                        width: 180px;
+                        height: 180px;
+                        margin-bottom: 12px;
+                    }
+                    .info-details {
+                        font-size: 10px;
+                        color: #1a1a1a;
+                        text-align: left;
+                        width: 100%;
+                        line-height: 1.5;
+                        font-weight: 600;
+                        border-top: 1px dashed #ccc;
+                        padding-top: 8px;
+                    }
+                    .label-line {
+                        margin-bottom: 3px;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="label-card">
+                    <div class="info-title">🚜 Trazabilidad de Cultivo</div>
+                    <img class="qr-img" src="${qrImageUrl}" alt="Código QR de Trazabilidad">
+                    <div class="info-details">
+                        ${lines}
+                    </div>
+                </div>
+                <script>
+                    window.onload = function() {
+                        window.print();
+                        setTimeout(function() { window.close(); }, 500);
+                    }
+                <\/script>
+            </body>
+            </html>
+        `;
+
+        const printWin = window.open('', '_blank', 'width=450,height=550');
+        if (printWin) {
+            printWin.document.write(labelHTML);
+            printWin.document.close();
+            printWin.focus();
+        } else {
+            showToast('Activa las ventanas emergentes para poder imprimir la etiqueta', 'error');
+        }
+    } catch (err) {
+        console.error("Error al imprimir la etiqueta:", err);
+        showToast("Error al imprimir: " + err.message, "error");
+    }
+}
+
 function deleteOlivarHarvest(harvestId) {
     if (confirm("¿Estás seguro de que quieres eliminar este registro de cosecha de aceituna?")) {
         state.olivar.cosechas = state.olivar.cosechas.filter(c => c.id !== harvestId);

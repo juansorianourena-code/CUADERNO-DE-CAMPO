@@ -32,7 +32,7 @@
     <script src="./qrious.min.js"></script>
 
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=23">
+    <link rel="stylesheet" href="styles.css?v=24">
 </head>
 <body>
 
@@ -1025,7 +1025,10 @@
                 </div>
                 <div style="padding: 15px; text-align: center; background: white; border-radius: 12px; margin-top: 10px;">
                     <div id="qr-code-container" style="display: flex; justify-content: center; margin-bottom: 15px;"></div>
-                    <p style="font-size: 0.8rem; color: #333; margin: 0; text-align: left;" id="qr-info-text"></p>
+                    <p style="font-size: 0.8rem; color: #333; margin: 0; text-align: left; margin-bottom: 15px;" id="qr-info-text"></p>
+                    <button class="btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700;" onclick="printQRLabel()">
+                        <i class="ph ph-printer"></i> Imprimir Etiqueta
+                    </button>
                 </div>
             </div>
         </div>
@@ -1093,7 +1096,7 @@
     </div>
 
     <!-- Script de lógica de la aplicación -->
-    <script src="app.js?v=23"></script>
+    <script src="app.js?v=24"></script>
 
     <!-- Register Service Worker -->
     <script>
