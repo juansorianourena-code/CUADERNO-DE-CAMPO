@@ -2302,47 +2302,69 @@ function renderOlivarHarvestHistory() {
 
 // --- TRAZABILIDAD (QR) ---
 function showTraceabilityQR(harvestId, type) {
-    const container = document.getElementById('qr-code-container');
-    const infoText = document.getElementById('qr-info-text');
-    container.innerHTML = '';
-    
-    let c = null;
-    let parcelaName = '';
-    let details = '';
+    try {
+        const container = document.getElementById('qr-code-container');
+        const infoText = document.getElementById('qr-info-text');
+        if (!container || !infoText) {
+            showToast("Error: Contenedores de QR no encontrados", "error");
+            return;
+        }
+        container.innerHTML = '';
+        
+        let c = null;
+        let parcelaName = '';
+        let details = '';
 
-    if (type === 'huerto') {
-        c = state.huerto.cosechas.find(x => x.id === harvestId);
-        if (c) {
-            parcelaName = state.huerto.parcelas[c.parcela] || 'Parcela Desconocida';
-            details = `Producto: ${c.product}\nCantidad: ${c.count} uds`;
+        if (type === 'huerto') {
+            if (state.huerto && state.huerto.cosechas) {
+                c = state.huerto.cosechas.find(x => String(x.id) === String(harvestId));
+            }
+            if (c) {
+                parcelaName = state.huerto.parcelas[c.parcela] || 'Parcela Desconocida';
+                details = `Producto: ${c.product}\nCantidad: ${c.count} uds`;
+            }
+        } else {
+            if (state.olivar && state.olivar.cosechas) {
+                c = state.olivar.cosechas.find(x => String(x.id) === String(harvestId));
+            }
+            if (c) {
+                parcelaName = state.olivar.parcelas[c.parcela] || 'Finca Desconocida';
+                details = `Aceite: ${c.oil} L\nAceituna: ${c.kg} Kg\nRendimiento: ${c.yield}%`;
+            }
         }
-    } else {
-        c = state.olivar.cosechas.find(x => x.id === harvestId);
-        if (c) {
-            parcelaName = state.olivar.parcelas[c.parcela] || 'Finca Desconocida';
-            details = `Aceite: ${c.oil} L\nAceituna: ${c.kg} Kg\nRendimiento: ${c.yield}%`;
+
+        if (!c) {
+            showToast("No se encontró el registro de cosecha correspondiente", "error");
+            return;
         }
+
+        // Build the string to be encoded in the QR code
+        const qrData = `🚜 Cuaderno de Campo\n📍 Origen: ${parcelaName}\n📅 Fecha: ${c.date}\n📦 ${details}\n✅ Cultivo 100% Trazable`;
+
+        if (typeof QRious === 'undefined') {
+            throw new ReferenceError("La librería QRious no está cargada. Por favor, forzar la recarga de la app.");
+        }
+
+        // Generate the QR code using the QRious instance locally
+        const canvas = document.createElement('canvas');
+        container.appendChild(canvas);
+        new QRious({
+            element: canvas,
+            value: qrData,
+            size: 180,
+            background: '#ffffff',
+            foreground: '#1a1a1a',
+            level: 'M'
+        });
+
+        // Also show it as text below the QR for the user
+        infoText.innerText = qrData;
+
+        openModal('modal-qr-view');
+    } catch (err) {
+        console.error("Error al generar el QR:", err);
+        showToast("Error al generar QR: " + err.message, "error");
     }
-
-    if (!c) return;
-
-    // Build the string to be encoded in the QR code
-    const qrData = `🚜 Cuaderno de Campo\n📍 Origen: ${parcelaName}\n📅 Fecha: ${c.date}\n📦 ${details}\n✅ Cultivo 100% Trazable`;
-
-    // Generate the QR code using the QRCode instance from the CDN script
-    new QRCode(container, {
-        text: qrData,
-        width: 180,
-        height: 180,
-        colorDark : "#1a1a1a",
-        colorLight : "#ffffff",
-        correctLevel : QRCode.CorrectLevel.M
-    });
-
-    // Also show it as text below the QR for the user
-    infoText.innerText = qrData;
-
-    openModal('modal-qr-view');
 }
 
 function deleteOlivarHarvest(harvestId) {
