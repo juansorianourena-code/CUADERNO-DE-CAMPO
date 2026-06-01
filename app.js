@@ -2484,6 +2484,396 @@ function printQRLabel() {
     }
 }
 
+// ==========================================
+// IMPRESIÓN BLUETOOTH (IMPRESORAS TÉRMICAS BLE - PROTOCOLO 0x5178)
+// ==========================================
+
+const BLE_CHECKSUM_TABLE = new Uint8Array([
+    0, 7, 14, 9, 28, 27, 18, 21, 56, 63, 54, 49, 36, 35, 42, 45, 112, 119, 126, 121,
+    108, 107, 98, 101, 72, 79, 70, 65, 84, 83, 90, 93, 224, 231, 238, 233, 252, 251,
+    242, 245, 216, 223, 214, 209, 196, 195, 202, 205, 144, 151, 158, 153, 140, 139,
+    130, 133, 168, 175, 166, 161, 180, 179, 186, 189, 199, 192, 201, 206, 219, 220,
+    213, 210, 255, 248, 241, 246, 227, 228, 237, 234, 183, 180, 185, 190, 171, 172,
+    165, 166, 143, 136, 129, 134, 147, 148, 157, 154, 39, 32, 41, 46, 59, 60, 53, 50,
+    31, 24, 17, 22, 3, 4, 13, 10, 87, 80, 89, 94, 75, 76, 69, 66, 111, 104, 97, 102,
+    115, 116, 125, 122, 137, 142, 135, 128, 149, 146, 155, 156, 177, 182, 191, 184,
+    173, 170, 163, 164, 249, 254, 247, 240, 229, 226, 235, 236, 193, 198, 207, 200,
+    221, 218, 211, 212, 105, 110, 103, 96, 117, 114, 123, 124, 81, 86, 95, 88, 77,
+    74, 67, 68, 25, 30, 23, 16, 5, 2, 11, 12, 33, 38, 47, 40, 61, 58, 51, 52, 78, 73,
+    64, 71, 82, 85, 92, 91, 118, 113, 120, 127, 106, 109, 100, 99, 62, 57, 48, 55,
+    34, 37, 44, 43, 6, 1, 8, 15, 26, 29, 20, 19, 174, 169, 160, 167, 178, 181, 188,
+    189, 150, 145, 152, 159, 138, 141, 132, 133, 222, 217, 208, 215, 194, 197, 204,
+    205, 230, 225, 232, 239, 250, 253, 244, 245
+]);
+
+function bleChkSum(arr, start, len) {
+    let crc = 0;
+    for (let i = start; i < start + len; i++) {
+        crc = BLE_CHECKSUM_TABLE[(crc ^ arr[i]) & 0xff];
+    }
+    return crc;
+}
+
+function bleEncodeRunLengthRepetition(n, val) {
+    const res = [];
+    while (n > 0x7f) {
+        res.push(0x7f | (val << 7));
+        n -= 0x7f;
+    }
+    if (n > 0) {
+        res.push((val << 7) | n);
+    }
+    return res;
+}
+
+function bleRunLengthEncode(imgRow) {
+    const res = [];
+    let count = 0;
+    let lastVal = -1;
+    for (let i = 0; i < imgRow.length; i++) {
+        const val = imgRow[i];
+        if (val === lastVal) {
+            count++;
+        } else {
+            if (count > 0) {
+                res.push(...bleEncodeRunLengthRepetition(count, lastVal));
+            }
+            count = 1;
+        }
+        lastVal = val;
+    }
+    if (count > 0) {
+        res.push(...bleEncodeRunLengthRepetition(count, lastVal));
+    }
+    return res;
+}
+
+function bleByteEncode(imgRow) {
+    const res = [];
+    for (let chunkStart = 0; chunkStart < imgRow.length; chunkStart += 8) {
+        let byteVal = 0;
+        for (let bitIdx = 0; bitIdx < 8; bitIdx++) {
+            if (imgRow[chunkStart + bitIdx]) {
+                byteVal |= (1 << bitIdx);
+            }
+        }
+        res.push(byteVal);
+    }
+    return res;
+}
+
+function bleCmdPrintRow(imgRow) {
+    const encodedImg = bleRunLengthEncode(imgRow);
+    
+    if (encodedImg.length > 48) { // 384 / 8 = 48
+        const byteEncoded = bleByteEncode(imgRow);
+        const arr = new Uint8Array(8 + byteEncoded.length);
+        arr[0] = 0x51;
+        arr[1] = 0x78;
+        arr[2] = 0xa2; // Command.Bitmap
+        arr[3] = 0x00; // Type
+        arr[4] = byteEncoded.length & 0xff;
+        arr[5] = (byteEncoded.length >> 8) & 0xff;
+        arr.set(byteEncoded, 6);
+        arr[6 + byteEncoded.length] = bleChkSum(arr, 6, byteEncoded.length);
+        arr[7 + byteEncoded.length] = 0xff;
+        return arr;
+    } else {
+        const arr = new Uint8Array(8 + encodedImg.length);
+        arr[0] = 0x51;
+        arr[1] = 0x78;
+        arr[2] = 0xbf; // Command.BitmapRLE
+        arr[3] = 0x00; // Type
+        arr[4] = encodedImg.length & 0xff;
+        arr[5] = (encodedImg.length >> 8) & 0xff;
+        arr.set(encodedImg, 6);
+        arr[6 + encodedImg.length] = bleChkSum(arr, 6, encodedImg.length);
+        arr[7 + encodedImg.length] = 0xff;
+        return arr;
+    }
+}
+
+function bleCmdFeedPaper(howMuch) {
+    const arr = new Uint8Array([0x51, 0x78, 0xbd, 0x00, 0x01, 0x00, howMuch & 0xff, 0x00, 0xff]);
+    arr[7] = bleChkSum(arr, 6, 1);
+    return arr;
+}
+
+function bleCmdSetEnergy(val) {
+    const arr = new Uint8Array([0x51, 0x78, 0xaf, 0x00, 0x02, 0x00, (val >> 8) & 0xff, val & 0xff, 0x00, 0xff]);
+    arr[8] = bleChkSum(arr, 6, 2);
+    return arr;
+}
+
+function bleCmdApplyEnergy() {
+    const arr = new Uint8Array([0x51, 0x78, 0xbe, 0x00, 0x01, 0x00, 0x01, 0x00, 0xff]);
+    arr[7] = bleChkSum(arr, 6, 1);
+    return arr;
+}
+
+function bleGetCanvasRowPixels(ctx, y, width) {
+    const imgData = ctx.getImageData(0, y, width, 1).data;
+    const row = new Uint8Array(width);
+    for (let x = 0; x < width; x++) {
+        const r = imgData[x * 4];
+        const g = imgData[x * 4 + 1];
+        const b = imgData[x * 4 + 2];
+        const a = imgData[x * 4 + 3];
+        const isBlack = (a > 50) && ((r + g + b) / 3 < 128);
+        row[x] = isBlack ? 1 : 0;
+    }
+    return row;
+}
+
+function bleRenderStickerToCanvas(qrCanvas, textContent) {
+    const width = 384;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = width;
+    tempCanvas.height = 1000;
+    const ctx = tempCanvas.getContext('2d');
+    
+    // Fill background white
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, tempCanvas.height);
+    
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'center';
+    
+    let y = 30;
+    
+    // Title
+    ctx.font = 'bold 18px Arial, sans-serif';
+    ctx.fillText('CUADERNO DE CAMPO', width / 2, y);
+    y += 22;
+    
+    ctx.font = '12px Arial, sans-serif';
+    ctx.fillText('Trazabilidad de Cosecha', width / 2, y);
+    y += 18;
+    
+    // Divider
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(25, y);
+    ctx.lineTo(width - 25, y);
+    ctx.stroke();
+    y += 25;
+    
+    // Draw QR Code
+    const qrSize = 220;
+    const qrX = (width - qrSize) / 2;
+    ctx.drawImage(qrCanvas, qrX, y, qrSize, qrSize);
+    y += qrSize + 25;
+    
+    // Divider (Dashed)
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(25, y);
+    ctx.lineTo(width - 25, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    y += 20;
+    
+    // Details
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 12px Arial, sans-serif';
+    
+    const lines = textContent.split('\n')
+        .filter(line => line.trim().length > 0)
+        .map(line => line.replace(/🚜|📍|📅|📦|✅/g, '').trim()); // Clean emojis
+        
+    for (const line of lines) {
+        const words = line.split(' ');
+        let currentLine = '';
+        const maxWidth = width - 50;
+        const marginLeft = 25;
+        
+        for (let n = 0; n < words.length; n++) {
+            const testLine = currentLine + words[n] + ' ';
+            const testWidth = ctx.measureText(testLine).width;
+            if (testWidth > maxWidth && n > 0) {
+                ctx.fillText(currentLine, marginLeft, y);
+                currentLine = words[n] + ' ';
+                y += 18;
+            } else {
+                currentLine = testLine;
+            }
+        }
+        ctx.fillText(currentLine, marginLeft, y);
+        y += 20;
+    }
+    
+    y += 30; // bottom spacing
+    
+    // Crop to final height y
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = width;
+    finalCanvas.height = y;
+    const finalCtx = finalCanvas.getContext('2d');
+    finalCtx.drawImage(tempCanvas, 0, 0, width, y, 0, 0, width, y);
+    
+    // Draw thick outer border
+    finalCtx.strokeStyle = '#000000';
+    finalCtx.lineWidth = 4;
+    finalCtx.strokeRect(6, 6, width - 12, y - 12);
+    
+    return finalCanvas;
+}
+
+function updateBlePrintStatus(text, type) {
+    const statusDiv = document.getElementById('ble-print-status');
+    if (!statusDiv) return;
+    
+    statusDiv.style.display = 'block';
+    statusDiv.innerText = text;
+    
+    if (type === 'error') {
+        statusDiv.style.backgroundColor = '#fee2e2';
+        statusDiv.style.color = '#991b1b';
+        statusDiv.style.border = '1px solid #fca5a5';
+    } else if (type === 'success') {
+        statusDiv.style.backgroundColor = '#d1fae5';
+        statusDiv.style.color = '#065f46';
+        statusDiv.style.border = '1px solid #6ee7b7';
+    } else { // info
+        statusDiv.style.backgroundColor = '#eff6ff';
+        statusDiv.style.color = '#1e40af';
+        statusDiv.style.border = '1px solid #93c5fd';
+    }
+}
+
+async function printQRLabelBluetooth() {
+    const statusDiv = document.getElementById('ble-print-status');
+    if (statusDiv) statusDiv.style.display = 'none';
+
+    if (!navigator.bluetooth) {
+        updateBlePrintStatus("Web Bluetooth no está soportado en este navegador. Utiliza Google Chrome en Android/PC/Mac, o navegadores Web Bluetooth dedicados en iOS (como Bluefy).", "error");
+        return;
+    }
+
+    const qrCanvas = document.querySelector('#qr-code-container canvas');
+    const infoText = document.getElementById('qr-info-text');
+    
+    if (!qrCanvas) {
+        showToast("No hay ningún código QR para imprimir", "error");
+        return;
+    }
+
+    const textContent = infoText ? infoText.innerText : '';
+    let gattServer = null;
+
+    try {
+        updateBlePrintStatus("Buscando impresora Bluetooth...", "info");
+        
+        const device = await navigator.bluetooth.requestDevice({
+            filters: [
+                { namePrefix: 'MX' },
+                { namePrefix: 'GB' },
+                { namePrefix: 'BP' },
+                { namePrefix: 'GT' },
+                { namePrefix: 'TP' },
+                { namePrefix: 'FP' },
+                { namePrefix: 'Fun' },
+                { services: ['0000ae30-0000-1000-8000-00805f9b34fb'] }
+            ],
+            optionalServices: [
+                '0000ae30-0000-1000-8000-00805f9b34fb',
+                '0000fee7-0000-1000-8000-00805f9b34fb'
+            ]
+        });
+
+        updateBlePrintStatus(`Conectando a ${device.name || 'Impresora'}...`, "info");
+        
+        gattServer = await device.gatt.connect();
+        
+        updateBlePrintStatus("Buscando canal de impresión...", "info");
+        
+        let service;
+        let characteristic;
+        try {
+            service = await gattServer.getPrimaryService('0000ae30-0000-1000-8000-00805f9b34fb');
+            characteristic = await service.getCharacteristic('0000ae01-0000-1000-8000-00805f9b34fb');
+        } catch (e) {
+            console.log("Servicio ae30 no encontrado, probando alternativo fee7...");
+            service = await gattServer.getPrimaryService('0000fee7-0000-1000-8000-00805f9b34fb');
+            characteristic = await service.getCharacteristic('0000fee9-0000-1000-8000-00805f9b34fb');
+        }
+
+        updateBlePrintStatus("Preparando diseño de pegatina...", "info");
+
+        const stickerCanvas = bleRenderStickerToCanvas(qrCanvas, textContent);
+        const ctx = stickerCanvas.getContext('2d');
+        const height = stickerCanvas.height;
+
+        updateBlePrintStatus("Generando comandos de impresión...", "info");
+
+        // Fixed/constant control arrays
+        const CMD_GET_DEV_STATE = new Uint8Array([0x51, 0x78, 0xa3, 0x00, 0x01, 0x00, 0x00, 0x00, 0xff]);
+        CMD_GET_DEV_STATE[7] = bleChkSum(CMD_GET_DEV_STATE, 6, 1);
+
+        const CMD_SET_QUALITY_200_DPI = new Uint8Array([0x51, 0x78, 0xa4, 0x00, 0x01, 0x00, 0x32, 0x9e, 0xff]);
+        const CMD_LATTICE_START = new Uint8Array([0x51, 0x78, 0xa6, 0x00, 0x0b, 0x00, 0xaa, 0x55, 0x17, 0x38, 0x44, 0x5f, 0x5f, 0x5f, 0x44, 0x38, 0x2c, 0xa1, 0xff]);
+        const CMD_LATTICE_END = new Uint8Array([0x51, 0x78, 0xa6, 0x00, 0x0b, 0x00, 0xaa, 0x55, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x17, 0x11, 0xff]);
+        const CMD_SET_PAPER = new Uint8Array([0x51, 0x78, 0xa1, 0x00, 0x02, 0x00, 0x30, 0x00, 0xf9, 0xff]);
+
+        const cmdList = [];
+        cmdList.push(...CMD_GET_DEV_STATE);
+        cmdList.push(...CMD_SET_QUALITY_200_DPI);
+        cmdList.push(...bleCmdSetEnergy(0xffff)); // Maximum heat/contrast
+        cmdList.push(...bleCmdApplyEnergy());
+        cmdList.push(...CMD_LATTICE_START);
+
+        // Render rows and generate commands
+        for (let y = 0; y < height; y++) {
+            const rowPixels = bleGetCanvasRowPixels(ctx, y, 384);
+            const rowCmd = bleCmdPrintRow(rowPixels);
+            cmdList.push(...rowCmd);
+        }
+
+        // Finishing and feed
+        cmdList.push(...bleCmdFeedPaper(60));
+        cmdList.push(...CMD_SET_PAPER);
+        cmdList.push(...CMD_SET_PAPER);
+        cmdList.push(...CMD_SET_PAPER);
+        cmdList.push(...CMD_LATTICE_END);
+        cmdList.push(...CMD_GET_DEV_STATE);
+
+        const printBuffer = new Uint8Array(cmdList);
+        const totalSize = printBuffer.length;
+        
+        updateBlePrintStatus("Enviando datos (0%)...", "info");
+
+        const chunkSize = 100;
+        const delayMs = 15;
+        for (let offset = 0; offset < totalSize; offset += chunkSize) {
+            const chunk = printBuffer.slice(offset, offset + chunkSize);
+            if (characteristic.writeValueWithoutResponse) {
+                await characteristic.writeValueWithoutResponse(chunk);
+            } else {
+                await characteristic.writeValue(chunk);
+            }
+            const progress = Math.min(100, Math.round(((offset + chunk.length) / totalSize) * 100));
+            updateBlePrintStatus(`Enviando datos (${progress}%)...`, "info");
+            if (delayMs > 0) {
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+        }
+
+        updateBlePrintStatus("¡Impresión completada!", "success");
+        showToast("¡Etiqueta impresa con éxito!", "success");
+    } catch (err) {
+        console.error("Error al imprimir por Bluetooth:", err);
+        updateBlePrintStatus("Error: " + err.message, "error");
+        showToast("Error Bluetooth: " + err.message, "error");
+    } finally {
+        if (gattServer && gattServer.connected) {
+            gattServer.disconnect();
+        }
+    }
+}
+
 function deleteOlivarHarvest(harvestId) {
     if (confirm("¿Estás seguro de que quieres eliminar este registro de cosecha de aceituna?")) {
         state.olivar.cosechas = state.olivar.cosechas.filter(c => c.id !== harvestId);

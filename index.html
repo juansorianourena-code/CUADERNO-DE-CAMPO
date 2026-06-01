@@ -32,7 +32,7 @@
     <script src="./qrious.min.js"></script>
 
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=24">
+    <link rel="stylesheet" href="styles.css?v=25">
 </head>
 <body>
 
@@ -1026,9 +1026,15 @@
                 <div style="padding: 15px; text-align: center; background: white; border-radius: 12px; margin-top: 10px;">
                     <div id="qr-code-container" style="display: flex; justify-content: center; margin-bottom: 15px;"></div>
                     <p style="font-size: 0.8rem; color: #333; margin: 0; text-align: left; margin-bottom: 15px;" id="qr-info-text"></p>
-                    <button class="btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700;" onclick="printQRLabel()">
-                        <i class="ph ph-printer"></i> Imprimir Etiqueta
-                    </button>
+                    <div style="display: flex; gap: 10px; width: 100%;">
+                        <button class="btn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; background-color: #64748b; font-size: 0.8rem;" onclick="printQRLabel()">
+                            <i class="ph ph-printer"></i> Imprimir (PDF)
+                        </button>
+                        <button class="btn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; background: linear-gradient(135deg, #10b981, #059669); font-size: 0.8rem;" onclick="printQRLabelBluetooth()">
+                            <i class="ph ph-bluetooth"></i> Imprimir BLE
+                        </button>
+                    </div>
+                    <div id="ble-print-status" style="display: none; margin-top: 12px; padding: 10px; border-radius: 8px; font-size: 0.75rem; text-align: center; font-weight: 600; line-height: 1.4;"></div>
                 </div>
             </div>
         </div>
@@ -1096,7 +1102,7 @@
     </div>
 
     <!-- Script de lógica de la aplicación -->
-    <script src="app.js?v=24"></script>
+    <script src="app.js?v=25"></script>
 
     <!-- Register Service Worker -->
     <script>
