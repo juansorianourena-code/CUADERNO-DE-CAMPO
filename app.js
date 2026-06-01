@@ -2338,8 +2338,11 @@ function showTraceabilityQR(harvestId, type) {
             return;
         }
 
-        // Build the string to be encoded in the QR code
-        const qrData = `🚜 Cuaderno de Campo\n📍 Origen: ${parcelaName}\n📅 Fecha: ${c.date}\n📦 ${details}\n✅ Cultivo 100% Trazable`;
+        // Build a clean string to be encoded in the QR code (no emojis, for maximum compatibility with all scanner apps)
+        const qrData = `Cuaderno de Campo\nOrigen: ${parcelaName}\nFecha: ${c.date}\n${details}\nTrazabilidad: Cultivo 100% Trazable`;
+
+        // Build a visual string with emojis to show below the QR in the UI
+        const displayData = `🚜 Cuaderno de Campo\n📍 Origen: ${parcelaName}\n📅 Fecha: ${c.date}\n📦 ${details}\n✅ Cultivo 100% Trazable`;
 
         if (typeof QRious === 'undefined') {
             throw new ReferenceError("La librería QRious no está cargada. Por favor, forzar la recarga de la app.");
@@ -2351,14 +2354,15 @@ function showTraceabilityQR(harvestId, type) {
         new QRious({
             element: canvas,
             value: qrData,
-            size: 180,
+            size: 220,
+            padding: 12,
             background: '#ffffff',
             foreground: '#1a1a1a',
-            level: 'M'
+            level: 'L'
         });
 
         // Also show it as text below the QR for the user
-        infoText.innerText = qrData;
+        infoText.innerText = displayData;
 
         openModal('modal-qr-view');
     } catch (err) {
