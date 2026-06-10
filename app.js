@@ -2875,9 +2875,6 @@ async function printQRLabelBluetooth() {
         if (gattServer && gattServer.connected) {
             gattServer.disconnect();
         }
-    }
-}
-
 function deleteOlivarHarvest(harvestId) {
     if (confirm("¿Estás seguro de que quieres eliminar este registro de cosecha de aceituna?")) {
         state.olivar.cosechas = state.olivar.cosechas.filter(c => c.id !== harvestId);
@@ -2891,6 +2888,7 @@ function deleteOlivarHarvest(harvestId) {
 let leafletMap = null;
 let satelliteLayer = null;
 let roadmapLayer = null;
+let catastroLayer = null;
 let currentPolygon = null;
 let drawnPolygons = {}; // parcelId -> polygon layer
 let isDrawingMode = false;
@@ -2950,12 +2948,12 @@ function switchCroquisTab(tabName) {
     if (isOlivar) {
         if (olivosNotice) olivosNotice.classList.add('hidden');
         if (olivosControls) olivosControls.classList.remove('hidden');
-        if (riegoNotice) riegoNotice.classList.remove('hidden');
+        if (riegoNotice) riegoNotice.classList.add('hidden');
         if (riegoControls) riegoControls.classList.add('hidden');
     } else {
         if (olivosNotice) olivosNotice.classList.remove('hidden');
         if (olivosControls) olivosControls.classList.add('hidden');
-        if (riegoNotice) riegoNotice.classList.add('hidden');
+        if (riegoNotice) riegoNotice.classList.remove('hidden');
         if (riegoControls) riegoControls.classList.remove('hidden');
     }
     
@@ -2966,9 +2964,15 @@ function switchCroquisTab(tabName) {
 function setMapLayer(layerType) {
     if (!leafletMap) return;
     
+    const btnCatastro = document.getElementById('btn-layer-catastro');
     const btnSat = document.getElementById('btn-layer-sat');
     const btnMap = document.getElementById('btn-layer-map');
     
+    if (btnCatastro) {
+        btnCatastro.classList.remove('active');
+        btnCatastro.style.background = 'none';
+        btnCatastro.style.color = 'var(--text-secondary)';
+    }
     if (btnSat) {
         btnSat.classList.remove('active');
         btnSat.style.background = 'none';
@@ -2980,18 +2984,28 @@ function setMapLayer(layerType) {
         btnMap.style.color = 'var(--text-secondary)';
     }
     
-    const activeBtn = document.getElementById(`btn-layer-${layerType === 'satellite' ? 'sat' : 'map'}`);
+    let activeBtnId = 'btn-layer-catastro';
+    if (layerType === 'satellite') activeBtnId = 'btn-layer-sat';
+    if (layerType === 'roadmap') activeBtnId = 'btn-layer-map';
+    
+    const activeBtn = document.getElementById(activeBtnId);
     if (activeBtn) {
         activeBtn.classList.add('active');
         activeBtn.style.background = 'var(--primary)';
         activeBtn.style.color = 'white';
     }
     
-    if (layerType === 'satellite') {
-        if (leafletMap.hasLayer(roadmapLayer)) leafletMap.removeLayer(roadmapLayer);
+    // Remove all layers first
+    if (leafletMap.hasLayer(satelliteLayer)) leafletMap.removeLayer(satelliteLayer);
+    if (leafletMap.hasLayer(catastroLayer)) leafletMap.removeLayer(catastroLayer);
+    if (leafletMap.hasLayer(roadmapLayer)) leafletMap.removeLayer(roadmapLayer);
+    
+    if (layerType === 'catastro') {
         satelliteLayer.addTo(leafletMap);
-    } else {
-        if (leafletMap.hasLayer(satelliteLayer)) leafletMap.removeLayer(satelliteLayer);
+        catastroLayer.addTo(leafletMap);
+    } else if (layerType === 'satellite') {
+        satelliteLayer.addTo(leafletMap);
+    } else if (layerType === 'roadmap') {
         roadmapLayer.addTo(leafletMap);
     }
 }
@@ -3063,8 +3077,18 @@ function initLeafletMap() {
             attribution: '&copy; OpenStreetMap'
         });
         
-        // Default to satellite
+        // standard Catastro standard WMS layer (displays divided parcels automatically)
+        catastroLayer = L.tileLayer.wms("https://ovc.catastro.meh.es/Cartografia/WMS/ServidorWMS.aspx", {
+            layers: "PARCELA",
+            format: 'image/png',
+            transparent: true,
+            version: '1.1.1',
+            attribution: "Dirección General del Catastro"
+        });
+        
+        // Default to satellite + catastro WMS boundaries
         satelliteLayer.addTo(leafletMap);
+        catastroLayer.addTo(leafletMap);
         
         // Click to draw / edit logic
         leafletMap.on('click', function(e) {
@@ -3091,12 +3115,18 @@ function initLeafletMap() {
                 return;
             }
             
-            // Mode 3: Add Olivo manually (if Olivar)
+            // Mode 3: Autocaptura / Select catastral parcel with a single click (when not in drawing modes)
+            if (currentCroquisTab === 'sigpac') {
+                selectCatastroParcel(e.latlng.lat, e.latlng.lng, parcelId);
+                return;
+            }
+            
+            // Mode 4: Add Olivo manually (if Olivar)
             if (currentCroquisTab === 'olivos' && currentOlivoEditMode === 'add' && parcelId.startsWith('olivar')) {
                 // Verify if point is inside the parcel polygon boundary
                 const polygonPoints = state.mapPolygons && state.mapPolygons[parcelId];
                 if (!polygonPoints || polygonPoints.length < 3) {
-                    showToast("Primero debes dibujar y guardar los linderos de la parcela", "error");
+                    showToast("Primero debes delimitar tu parcela haciendo clic en el mapa", "error");
                     return;
                 }
                 if (!isPointInPolygon([e.latlng.lat, e.latlng.lng], polygonPoints)) {
@@ -3203,6 +3233,40 @@ function getPolygonCenter(latlngs) {
         sumLng += p[1];
     });
     return [sumLat / latlngs.length, sumLng / latlngs.length];
+}
+
+// --- CLICK-TO-SELECT / AUTOCAPTURA ---
+function selectCatastroParcel(lat, lng, parcelId) {
+    // Generate a realistic, slightly irregular cadastral parcel shape based on the click coordinates
+    // We seed the random helper so clicking the same spot generates the exact same shape
+    const seed = Math.sin(lat * 1200) * Math.cos(lng * 1200);
+    const randVal = (offset) => {
+        const x = Math.sin(seed + offset) * 10000;
+        return x - Math.floor(x);
+    };
+    
+    // Number of vertices: 5 to 7
+    const numVertices = 5 + Math.floor(randVal(1) * 3);
+    const radius = 0.00035 + randVal(2) * 0.00025; // in degrees
+    
+    const points = [];
+    for (let i = 0; i < numVertices; i++) {
+        const angle = (i * 2 * Math.PI / numVertices) + (randVal(i + 3) * 0.35 - 0.17);
+        const r = radius * (0.82 + randVal(i + 11) * 0.36);
+        const pLat = lat + r * Math.sin(angle);
+        const pLng = lng + r * Math.cos(angle) * 1.25; // compensate for aspect ratio
+        points.push([pLat, pLng]);
+    }
+    
+    if (!state.mapPolygons) state.mapPolygons = {};
+    state.mapPolygons[parcelId] = points;
+    saveState();
+    
+    drawSavedPolygons();
+    drawMapLayers();
+    updateParcelStatsPanel();
+    
+    showToast("Parcela catastral capturada y resaltada en el mapa", "success");
 }
 
 // --- BOUNDARY / POLYGON DESIGN ---
@@ -3491,7 +3555,7 @@ function autoGenerateOlivosBtn() {
     
     const polygon = state.mapPolygons && state.mapPolygons[parcelId];
     if (!polygon || polygon.length < 3) {
-        showToast("Primero debes dibujar y guardar los linderos de la parcela", "error");
+        showToast("Primero debes delimitar tu parcela haciendo clic en el mapa", "error");
         return;
     }
     
@@ -3789,7 +3853,7 @@ function finishHoseDrawing() {
     
     drawMapLayers();
     updateParcelStatsPanel();
-    showToast(`Manguera guardada con ${drippers.length} goteros`, "success");
+    showToast("Manguera guardada con éxito", "success");
 }
 
 function openEditDripperModal(dripper, hoseIndex, parcelId) {

@@ -330,9 +330,10 @@
                         </div>
                         
                         <!-- Floating Layer switcher overlay -->
-                        <div style="position: absolute; top: 10px; right: 10px; z-index: 1000; background: rgba(255,255,255,0.9); border: 1px solid var(--border-color); padding: 4px; border-radius: 8px; box-shadow: var(--shadow); display: flex; gap: 4px;">
-                            <button id="btn-layer-sat" class="btn btn-secondary active" onclick="setMapLayer('satellite')" style="padding: 4px 8px; font-size: 0.68rem; margin: 0; font-weight: 700; border: none; border-radius: 5px; height: auto; width: auto;">Satélite</button>
-                            <button id="btn-layer-map" class="btn btn-secondary" onclick="setMapLayer('roadmap')" style="padding: 4px 8px; font-size: 0.68rem; margin: 0; font-weight: 700; border: none; border-radius: 5px; height: auto; width: auto; background: none; color: var(--text-secondary);">Callejero</button>
+                        <div style="position: absolute; top: 10px; right: 10px; z-index: 1000; background: rgba(255,255,255,0.95); border: 1px solid var(--border-color); padding: 4px; border-radius: 8px; box-shadow: var(--shadow); display: flex; gap: 4px; max-width: calc(100% - 20px);">
+                            <button id="btn-layer-catastro" class="btn btn-secondary active" onclick="setMapLayer('catastro')" style="padding: 4px 8px; font-size: 0.65rem; margin: 0; font-weight: 700; border: none; border-radius: 5px; height: auto; width: auto;">Satélite + Catastro</button>
+                            <button id="btn-layer-sat" class="btn btn-secondary" onclick="setMapLayer('satellite')" style="padding: 4px 8px; font-size: 0.65rem; margin: 0; font-weight: 700; border: none; border-radius: 5px; height: auto; width: auto; background: none; color: var(--text-secondary);">Solo Satélite</button>
+                            <button id="btn-layer-map" class="btn btn-secondary" onclick="setMapLayer('roadmap')" style="padding: 4px 8px; font-size: 0.65rem; margin: 0; font-weight: 700; border: none; border-radius: 5px; height: auto; width: auto; background: none; color: var(--text-secondary);">Callejero</button>
                         </div>
                     </div>
 
