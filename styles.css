@@ -1427,3 +1427,134 @@ body {
         font-size: 9pt;
     }
 }
+
+/* --- Interactive Croquis Map Enhancements --- */
+.map-olivo-marker {
+    background-color: #22c55e;
+    border: 2px solid #14532d;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    cursor: pointer;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 8px;
+    font-weight: bold;
+}
+.map-olivo-marker:hover {
+    transform: scale(1.3) !important;
+    z-index: 1000 !important;
+}
+.map-olivo-marker.status-estres {
+    background-color: #eab308;
+    border-color: #713f12;
+}
+.map-olivo-marker.status-plaga {
+    background-color: #ef4444;
+    border-color: #7f1d1d;
+    animation: pulse-plaga 1.5s infinite;
+}
+
+@keyframes pulse-plaga {
+    0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8);
+    }
+    70% {
+        box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+.map-gotero-marker {
+    background-color: #3b82f6;
+    border: 1.5px solid #1d4ed8;
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    cursor: pointer;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+.map-gotero-marker:hover {
+    transform: scale(1.35) !important;
+    z-index: 1000 !important;
+    background-color: #1d4ed8;
+}
+.map-gotero-marker.simulating {
+    animation: drip-animation 1.2s infinite ease-in-out alternate;
+}
+
+@keyframes drip-animation {
+    0% {
+        transform: scale(0.95);
+        background-color: #60a5fa;
+    }
+    100% {
+        transform: scale(1.2);
+        background-color: #1d4ed8;
+        box-shadow: 0 0 6px rgba(59, 130, 246, 0.8);
+    }
+}
+
+/* Hose Polyline flowing animation */
+.hose-flow-animated {
+    stroke-dasharray: 8, 8;
+    animation: flow-animation 1.5s linear infinite;
+}
+
+@keyframes flow-animation {
+    to {
+        stroke-dashoffset: -16;
+    }
+}
+
+.active-mode {
+    border-color: var(--primary) !important;
+    background-color: rgba(75, 96, 67, 0.08) !important;
+    font-weight: 800 !important;
+    color: var(--primary) !important;
+}
+
+.hose-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.hose-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.hose-item-delete {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 0.95rem;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.hose-item-delete:hover {
+    background-color: var(--danger-bg);
+}
+
+/* Map pointer styling */
+.crosshair-cursor-map {
+    cursor: crosshair !important;
+}
+

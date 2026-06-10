@@ -102,6 +102,8 @@ function seedInitialData() {
     };
     state.diario = [];
     state.croquis = {};
+    state.parcelTrees = {};
+    state.parcelHoses = {};
 
     const defaultParcels = ["huerto-general", "olivar-general"];
     defaultParcels.forEach(p => {
@@ -732,6 +734,8 @@ function loadState() {
             if (!state.diario) state.diario = [];
             if (!state.weatherLocation) state.weatherLocation = 'albacete';
             if (!state.croquisDimensions) state.croquisDimensions = {};
+            if (!state.parcelTrees) state.parcelTrees = {};
+            if (!state.parcelHoses) state.parcelHoses = {};
         } catch (e) {
             console.error("Error al parsear datos de localstorage, reseteando...", e);
             seedInitialData();
@@ -2885,14 +2889,132 @@ function deleteOlivarHarvest(harvestId) {
 
 // --- MAPA INTERACTIVO (LEAFLET) ---
 let leafletMap = null;
+let satelliteLayer = null;
+let roadmapLayer = null;
 let currentPolygon = null;
 let drawnPolygons = {}; // parcelId -> polygon layer
 let isDrawingMode = false;
 let currentDrawingPoints = [];
 
+// Croquis subviews and tabs
+let currentCroquisTab = 'sigpac'; // 'sigpac', 'olivos', 'riego'
+let currentOlivoEditMode = 'add'; // 'add', 'view'
+
+// Markers and vectors tracking
+let treeMarkers = {}; // parcelId -> Array of L.Marker
+let hoseLines = {}; // parcelId -> Array of L.Polyline
+let dripperMarkers = {}; // parcelId -> Array of L.Marker
+
+// Hose drawing state
+let isDrawingHose = false;
+let currentHosePoints = [];
+let tempHoseLine = null;
+
+// Irrigation flow simulation state
+let isIrrigating = false;
+
 function renderCroquis() {
-    // We repurpose this function name for the init logic since it's called by navigation
     initLeafletMap();
+}
+
+function switchCroquisTab(tabName) {
+    currentCroquisTab = tabName;
+    
+    // Toggle active tab buttons
+    document.querySelectorAll('#croquis-tab-selector .tab-btn').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.getElementById(`croquis-tab-${tabName}`);
+    if (activeBtn) activeBtn.classList.add('active');
+    
+    // Hide all subviews
+    const viewSigpac = document.getElementById('croquis-subview-sigpac');
+    const viewOlivos = document.getElementById('croquis-subview-olivos');
+    const viewRiego = document.getElementById('croquis-subview-riego');
+    
+    if (viewSigpac) viewSigpac.classList.add('hidden');
+    if (viewOlivos) viewOlivos.classList.add('hidden');
+    if (viewRiego) viewRiego.classList.add('hidden');
+    
+    // Show current subview
+    const activeView = document.getElementById(`croquis-subview-${tabName}`);
+    if (activeView) activeView.classList.remove('hidden');
+    
+    // Check parcel classification
+    const parcelId = document.getElementById('map-parcela-select').value;
+    const isOlivar = parcelId && parcelId.startsWith('olivar');
+    
+    const olivosNotice = document.getElementById('olivos-secano-notice');
+    const olivosControls = document.getElementById('olivos-secano-controls');
+    const riegoNotice = document.getElementById('riego-regadio-notice');
+    const riegoControls = document.getElementById('riego-regadio-controls');
+    
+    if (isOlivar) {
+        if (olivosNotice) olivosNotice.classList.add('hidden');
+        if (olivosControls) olivosControls.classList.remove('hidden');
+        if (riegoNotice) riegoNotice.classList.remove('hidden');
+        if (riegoControls) riegoControls.classList.add('hidden');
+    } else {
+        if (olivosNotice) olivosNotice.classList.remove('hidden');
+        if (olivosControls) olivosControls.classList.add('hidden');
+        if (riegoNotice) riegoNotice.classList.add('hidden');
+        if (riegoControls) riegoControls.classList.remove('hidden');
+    }
+    
+    // Redraw layers to adjust visibility/events based on mode
+    drawMapLayers();
+}
+
+function setMapLayer(layerType) {
+    if (!leafletMap) return;
+    
+    const btnSat = document.getElementById('btn-layer-sat');
+    const btnMap = document.getElementById('btn-layer-map');
+    
+    if (btnSat) {
+        btnSat.classList.remove('active');
+        btnSat.style.background = 'none';
+        btnSat.style.color = 'var(--text-secondary)';
+    }
+    if (btnMap) {
+        btnMap.classList.remove('active');
+        btnMap.style.background = 'none';
+        btnMap.style.color = 'var(--text-secondary)';
+    }
+    
+    const activeBtn = document.getElementById(`btn-layer-${layerType === 'satellite' ? 'sat' : 'map'}`);
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+        activeBtn.style.background = 'var(--primary)';
+        activeBtn.style.color = 'white';
+    }
+    
+    if (layerType === 'satellite') {
+        if (leafletMap.hasLayer(roadmapLayer)) leafletMap.removeLayer(roadmapLayer);
+        satelliteLayer.addTo(leafletMap);
+    } else {
+        if (leafletMap.hasLayer(satelliteLayer)) leafletMap.removeLayer(satelliteLayer);
+        roadmapLayer.addTo(leafletMap);
+    }
+}
+
+function onCroquisParcelChange() {
+    const parcelId = document.getElementById('map-parcela-select').value;
+    state.currentCroquisParcela = parcelId;
+    saveState(false, false);
+    
+    // Center map on this parcel
+    centerMapOnParcel();
+    
+    // Reset tabs based on parcel type
+    const isOlivar = parcelId && parcelId.startsWith('olivar');
+    if (isOlivar) {
+        switchCroquisTab('olivos');
+    } else {
+        switchCroquisTab('riego');
+    }
+    
+    // Update stats and redraw
+    updateParcelStatsPanel();
+    drawMapLayers();
 }
 
 function initLeafletMap() {
@@ -2918,29 +3040,90 @@ function initLeafletMap() {
         select.appendChild(opt);
     });
 
+    if (state.currentCroquisParcela && select.querySelector(`option[value="${state.currentCroquisParcela}"]`)) {
+        select.value = state.currentCroquisParcela;
+    } else if (select.options.length > 0) {
+        select.value = select.options[0].value;
+        state.currentCroquisParcela = select.value;
+    }
+
     // Init Map only once
     if (!leafletMap) {
-        // Default center (Spain)
-        leafletMap = L.map('map-container').setView([39.0, -2.0], 6);
+        // Default center (Fuensanta, Albacete)
+        leafletMap = L.map('map-container', {
+            zoomControl: true
+        }).setView([39.2435, -2.0631], 16);
         
-        // Use Esri World Imagery (Satellite)
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri'
-        }).addTo(leafletMap);
+        // Define layers
+        satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri World Imagery'
+        });
         
-        // Load saved polygons from state
-        if (!state.mapPolygons) state.mapPolygons = {};
+        roadmapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{y}/{x}.png', {
+            attribution: '&copy; OpenStreetMap'
+        });
         
-        // Click to draw logic
+        // Default to satellite
+        satelliteLayer.addTo(leafletMap);
+        
+        // Click to draw / edit logic
         leafletMap.on('click', function(e) {
-            if (!isDrawingMode) return;
-            currentDrawingPoints.push([e.latlng.lat, e.latlng.lng]);
-            
-            if (currentPolygon) {
-                leafletMap.removeLayer(currentPolygon);
+            const parcelId = document.getElementById('map-parcela-select').value;
+            if (!parcelId) return;
+
+            // Mode 1: Drawing Polygon boundaries
+            if (isDrawingMode) {
+                currentDrawingPoints.push([e.latlng.lat, e.latlng.lng]);
+                if (currentPolygon) {
+                    leafletMap.removeLayer(currentPolygon);
+                }
+                currentPolygon = L.polygon(currentDrawingPoints, {color: '#eab308', fillColor: '#eab308', weight: 3, fillOpacity: 0.2}).addTo(leafletMap);
+                return;
             }
             
-            currentPolygon = L.polygon(currentDrawingPoints, {color: '#4caf50', weight: 3}).addTo(leafletMap);
+            // Mode 2: Drawing Irrigation Hose
+            if (isDrawingHose) {
+                currentHosePoints.push([e.latlng.lat, e.latlng.lng]);
+                if (tempHoseLine) {
+                    leafletMap.removeLayer(tempHoseLine);
+                }
+                tempHoseLine = L.polyline(currentHosePoints, {color: '#2563eb', weight: 4.5}).addTo(leafletMap);
+                return;
+            }
+            
+            // Mode 3: Add Olivo manually (if Olivar)
+            if (currentCroquisTab === 'olivos' && currentOlivoEditMode === 'add' && parcelId.startsWith('olivar')) {
+                // Verify if point is inside the parcel polygon boundary
+                const polygonPoints = state.mapPolygons && state.mapPolygons[parcelId];
+                if (!polygonPoints || polygonPoints.length < 3) {
+                    showToast("Primero debes dibujar y guardar los linderos de la parcela", "error");
+                    return;
+                }
+                if (!isPointInPolygon([e.latlng.lat, e.latlng.lng], polygonPoints)) {
+                    showToast("El olivo debe colocarse dentro de los límites del olivar", "warning");
+                    return;
+                }
+                
+                // Add olivo
+                if (!state.parcelTrees) state.parcelTrees = {};
+                if (!state.parcelTrees[parcelId]) state.parcelTrees[parcelId] = [];
+                
+                const treeId = `tree-${Date.now()}`;
+                const newTree = {
+                    id: treeId,
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                    label: `Olivo #${state.parcelTrees[parcelId].length + 1}`,
+                    status: 'sano',
+                    notes: ''
+                };
+                
+                state.parcelTrees[parcelId].push(newTree);
+                saveState();
+                drawMapLayers();
+                updateParcelStatsPanel();
+                showToast("Olivo añadido correctamente", "success");
+            }
         });
 
         // Delay invalidation size to ensure DOM is ready
@@ -2948,13 +3131,81 @@ function initLeafletMap() {
             leafletMap.invalidateSize();
             drawSavedPolygons();
             centerMapOnParcel();
+            updateParcelStatsPanel();
+            
+            // Trigger switch tab to initialize state and view layout
+            const activeParcel = select.value;
+            if (activeParcel && activeParcel.startsWith('olivar')) {
+                switchCroquisTab('olivos');
+            } else {
+                switchCroquisTab('riego');
+            }
         }, 300);
     } else {
         leafletMap.invalidateSize();
         centerMapOnParcel();
+        updateParcelStatsPanel();
+        
+        const activeParcel = select.value;
+        if (activeParcel && activeParcel.startsWith('olivar')) {
+            switchCroquisTab('olivos');
+        } else {
+            switchCroquisTab('riego');
+        }
     }
 }
 
+// --- GEODETIC MATHEMATICAL ALGORITHMS ---
+function getHaversineDistance(p1, p2) {
+    const R = 6371000; // Earth radius in meters
+    const dLat = (p2[0] - p1[0]) * Math.PI / 180;
+    const dLng = (p2[1] - p1[1]) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(p1[0] * Math.PI / 180) * Math.cos(p2[0] * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+function calculatePolygonAreaHectares(latlngs) {
+    if (!latlngs || latlngs.length < 3) return 0;
+    
+    // Flat planar projection relative to the first polygon point
+    const lat0 = latlngs[0][0];
+    const lng0 = latlngs[0][1];
+    const rad = Math.PI / 180;
+    const cosLat = Math.cos(lat0 * rad);
+    const mPerDegLat = 111132;
+    const mPerDegLng = mPerDegLat * cosLat;
+    
+    const points = latlngs.map(p => {
+        return {
+            x: (p[1] - lng0) * mPerDegLng,
+            y: (p[0] - lat0) * mPerDegLat
+        };
+    });
+    
+    let area = 0;
+    for (let i = 0; i < points.length; i++) {
+        const j = (i + 1) % points.length;
+        area += points[i].x * points[j].y - points[j].x * points[i].y;
+    }
+    area = Math.abs(area) / 2; // in square meters
+    return area / 10000; // in hectares
+}
+
+function getPolygonCenter(latlngs) {
+    if (!latlngs || latlngs.length === 0) return [39.2435, -2.0631];
+    let sumLat = 0;
+    let sumLng = 0;
+    latlngs.forEach(p => {
+        sumLat += p[0];
+        sumLng += p[1];
+    });
+    return [sumLat / latlngs.length, sumLng / latlngs.length];
+}
+
+// --- BOUNDARY / POLYGON DESIGN ---
 function startDrawingPolygon() {
     isDrawingMode = true;
     currentDrawingPoints = [];
@@ -2962,8 +3213,9 @@ function startDrawingPolygon() {
         leafletMap.removeLayer(currentPolygon);
         currentPolygon = null;
     }
-    showToast("Toca el mapa para dibujar los vértices", "info");
-    document.getElementById('map-container').style.cursor = 'crosshair';
+    
+    document.getElementById('map-container').classList.add('crosshair-cursor-map');
+    showToast("Toca el mapa para definir los vértices de los linderos", "info");
 }
 
 function clearCurrentPolygon() {
@@ -2973,8 +3225,24 @@ function clearCurrentPolygon() {
         leafletMap.removeLayer(currentPolygon);
         currentPolygon = null;
     }
-    document.getElementById('map-container').style.cursor = '';
-    showToast("Dibujo borrado", "info");
+    document.getElementById('map-container').classList.remove('crosshair-cursor-map');
+    
+    const parcelId = document.getElementById('map-parcela-select').value;
+    if (parcelId && state.mapPolygons && state.mapPolygons[parcelId]) {
+        if (confirm("¿Seguro que quieres borrar los linderos guardados de esta parcela? Se borrarán sus olivos/mangueras.")) {
+            delete state.mapPolygons[parcelId];
+            if (state.parcelTrees) delete state.parcelTrees[parcelId];
+            if (state.parcelHoses) delete state.parcelHoses[parcelId];
+            saveState();
+            showToast("Linderos y distribución eliminados", "info");
+        }
+    } else {
+        showToast("Dibujo limpio", "info");
+    }
+    
+    drawSavedPolygons();
+    drawMapLayers();
+    updateParcelStatsPanel();
 }
 
 function saveMapPolygon() {
@@ -2982,7 +3250,7 @@ function saveMapPolygon() {
     if (!parcelId) return;
 
     if (!isDrawingMode || currentDrawingPoints.length < 3) {
-        showToast("Debes dibujar al menos 3 puntos", "error");
+        showToast("Debes marcar al menos 3 vértices en el mapa antes de guardar", "error");
         return;
     }
 
@@ -2991,23 +3259,37 @@ function saveMapPolygon() {
     saveState();
 
     isDrawingMode = false;
-    document.getElementById('map-container').style.cursor = '';
-    showToast("Polígono guardado", "success");
+    document.getElementById('map-container').classList.remove('crosshair-cursor-map');
+    showToast("Linderos guardados correctamente", "success");
+    
     drawSavedPolygons();
+    drawMapLayers();
+    updateParcelStatsPanel();
 }
 
 function drawSavedPolygons() {
-    if (!state.mapPolygons) return;
+    if (!leafletMap) return;
     
     // Clear old layers
     Object.values(drawnPolygons).forEach(layer => leafletMap.removeLayer(layer));
     drawnPolygons = {};
 
+    if (!state.mapPolygons) return;
+
     Object.keys(state.mapPolygons).forEach(parcelId => {
         const points = state.mapPolygons[parcelId];
         if (points && points.length >= 3) {
-            const polygon = L.polygon(points, {color: '#4caf50', fillColor: '#4caf50', fillOpacity: 0.3}).addTo(leafletMap);
-            polygon.bindTooltip(parcelId.startsWith('huerto') ? state.huerto.parcelas[parcelId] : state.olivar.parcelas[parcelId]);
+            const isOlivar = parcelId.startsWith('olivar');
+            const color = isOlivar ? '#166534' : '#eab308';
+            const polygon = L.polygon(points, {
+                color: color, 
+                fillColor: color, 
+                fillOpacity: 0.15,
+                weight: 2.5
+            }).addTo(leafletMap);
+            
+            const label = isOlivar ? state.olivar.parcelas[parcelId] : state.huerto.parcelas[parcelId];
+            polygon.bindTooltip(label, { sticky: true });
             drawnPolygons[parcelId] = polygon;
         }
     });
@@ -3015,14 +3297,676 @@ function drawSavedPolygons() {
 
 function centerMapOnParcel() {
     const parcelId = document.getElementById('map-parcela-select').value;
-    if (!state.mapPolygons || !state.mapPolygons[parcelId]) {
-        showToast("No hay polígono guardado para esta parcela", "info");
+    if (!leafletMap) return;
+    
+    if (state.mapPolygons && state.mapPolygons[parcelId]) {
+        const polygon = drawnPolygons[parcelId];
+        if (polygon) {
+            leafletMap.fitBounds(polygon.getBounds());
+            return;
+        }
+    }
+    
+    // Default coordinates near farm area
+    if (parcelId.startsWith('olivar')) {
+        leafletMap.setView([39.2435, -2.0631], 16);
+    } else {
+        leafletMap.setView([39.2410, -2.0650], 17);
+    }
+}
+
+// --- SIGPAC SIMULATED SEARCHER ---
+function simulateSigpacSearch() {
+    const polInput = document.getElementById('sigpac-poligono');
+    const parInput = document.getElementById('sigpac-parcela');
+    const refInput = document.getElementById('sigpac-refcatastral');
+    const searchIcon = document.getElementById('sigpac-search-icon');
+    
+    const pol = parseInt(polInput.value) || 8;
+    const par = parseInt(parInput.value) || 120;
+    const parcelId = document.getElementById('map-parcela-select').value;
+    
+    if (!parcelId) return;
+    
+    searchIcon.classList.add('ph-spin');
+    showToast("Conectando con servidor de Catastro / SIGPAC...", "info");
+    
+    setTimeout(() => {
+        searchIcon.classList.remove('ph-spin');
+        
+        let centerLat = 39.2435;
+        let centerLng = -2.0631;
+        
+        if (parcelId.startsWith('huerto')) {
+            centerLat = 39.2410;
+            centerLng = -2.0650;
+        }
+        
+        // Add variations based on pol/par
+        centerLat += (pol % 12) * 0.0006 - (par % 15) * 0.0002;
+        centerLng += (par % 15) * 0.0006 - (pol % 12) * 0.0002;
+        
+        const refStr = refInput.value.trim() || `02031A00${pol.toString().padStart(3,'0')}00${par.toString().padStart(3,'0')}0000WY`;
+        refInput.value = refStr;
+        
+        leafletMap.setView([centerLat, centerLng], 17);
+        
+        // Auto draw a nice polygon boundary shape
+        const size = 0.0007;
+        const boundaryPoints = [
+            [centerLat - size/2.5, centerLng - size/2],
+            [centerLat - size/2, centerLng + size/2.2],
+            [centerLat + size/3, centerLng + size/2.5],
+            [centerLat + size/2.1, centerLng - size/4],
+            [centerLat + size/4, centerLng - size/2]
+        ];
+        
+        if (!state.mapPolygons) state.mapPolygons = {};
+        state.mapPolygons[parcelId] = boundaryPoints;
+        saveState();
+        
+        isDrawingMode = false;
+        document.getElementById('map-container').classList.remove('crosshair-cursor-map');
+        
+        drawSavedPolygons();
+        drawMapLayers();
+        updateParcelStatsPanel();
+        
+        showToast("Linderos catastrales importados de SIGPAC", "success");
+    }, 1200);
+}
+
+// --- LIVE STATS UPDATE ---
+function updateParcelStatsPanel() {
+    const parcelId = document.getElementById('map-parcela-select').value;
+    const infoPanel = document.getElementById('parcel-info-panel');
+    
+    if (!parcelId) {
+        if (infoPanel) infoPanel.style.display = 'none';
         return;
     }
-    const polygon = drawnPolygons[parcelId];
-    if (polygon) {
-        leafletMap.fitBounds(polygon.getBounds());
+    
+    const points = state.mapPolygons && state.mapPolygons[parcelId];
+    const isOlivar = parcelId.startsWith('olivar');
+    
+    if (points && points.length >= 3) {
+        const areaHa = calculatePolygonAreaHectares(points);
+        const center = getPolygonCenter(points);
+        
+        if (infoPanel) infoPanel.style.display = 'flex';
+        
+        document.getElementById('info-superficie').innerText = `${areaHa.toFixed(2)} ha (${Math.round(areaHa * 10000).toLocaleString()} m²)`;
+        document.getElementById('info-centroide').innerText = `${center[0].toFixed(5)}, ${center[1].toFixed(5)}`;
+        document.getElementById('info-municipio').innerText = isOlivar ? "Fuensanta (Albacete) - Pol. 8, Parc. 120" : "Fuensanta (Albacete) - Pol. 4, Parc. 87";
+        document.getElementById('info-regimen').innerText = isOlivar ? "Secano (Cultivo de Olivar)" : "Regadío (Huerta / Hortalizas)";
+        
+        if (isOlivar) {
+            const trees = (state.parcelTrees && state.parcelTrees[parcelId]) || [];
+            const count = trees.length;
+            const density = areaHa > 0 ? (count / areaHa).toFixed(1) : 0;
+            const estProd = count * 40; // Approx 40kg olives per tree
+            
+            document.getElementById('stats-olivos-count').innerText = count;
+            document.getElementById('stats-olivos-density').innerText = `${density} olivos / ha`;
+            document.getElementById('stats-olivos-prod').innerText = `${estProd.toLocaleString()} kg Aceitunas`;
+        } else {
+            const hoses = (state.parcelHoses && state.parcelHoses[parcelId]) || [];
+            let totalDrippers = 0;
+            hoses.forEach(h => {
+                totalDrippers += (h.drippers && h.drippers.length) || 0;
+            });
+            
+            document.getElementById('stats-hoses-count').innerText = hoses.length;
+            document.getElementById('stats-drippers-count').innerText = totalDrippers;
+            
+            renderHosesListUI(parcelId, hoses);
+        }
+    } else {
+        if (infoPanel) infoPanel.style.display = 'none';
+        
+        if (isOlivar) {
+            document.getElementById('stats-olivos-count').innerText = '0';
+            document.getElementById('stats-olivos-density').innerText = '0 / ha';
+            document.getElementById('stats-olivos-prod').innerText = '0 kg';
+        } else {
+            document.getElementById('stats-hoses-count').innerText = '0';
+            document.getElementById('stats-drippers-count').innerText = '0';
+            const listContainer = document.getElementById('hoses-list-container');
+            if (listContainer) {
+                listContainer.innerHTML = '<div style="font-size:0.72rem; color:var(--text-muted); text-align:center; padding:8px;">Dibuja una manguera para listar</div>';
+            }
+        }
     }
+}
+
+function renderHosesListUI(parcelId, hoses) {
+    const listEl = document.getElementById('hoses-list-container');
+    if (!listEl) return;
+    
+    if (hoses.length === 0) {
+        listEl.innerHTML = '<div style="font-size:0.72rem; color:var(--text-muted); text-align:center; padding:8px;">Dibuja una manguera para listar</div>';
+        return;
+    }
+    
+    listEl.innerHTML = '';
+    hoses.forEach((h, index) => {
+        const item = document.createElement('div');
+        item.className = 'hose-item';
+        
+        let lengthMeters = 0;
+        for (let i = 1; i < h.points.length; i++) {
+            lengthMeters += getHaversineDistance(h.points[i-1], h.points[i]);
+        }
+        
+        item.innerHTML = `
+            <div class="hose-item-info">
+                <strong>Manguera #${index + 1} (${h.defaultPlant})</strong>
+                <span style="font-size:0.68rem; color:var(--text-secondary);">Largo: ${lengthMeters.toFixed(1)}m | Spacing: ${h.spacing}m | Goteros: ${h.drippers.length}</span>
+            </div>
+            <button class="hose-item-delete" onclick="deleteHose(${index}, '${parcelId}')" title="Eliminar manguera">
+                <i class="ph ph-trash"></i>
+            </button>
+        `;
+        listEl.appendChild(item);
+    });
+}
+
+// --- OLIVOS MANAGEMENT (SECANO) ---
+function isPointInPolygon(point, polygon) {
+    const x = point[0], y = point[1]; // lat, lng
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i][0], yi = polygon[i][1];
+        const xj = polygon[j][0], yj = polygon[j][1];
+        const intersect = ((yi > y) !== (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+function autoGenerateOlivosBtn() {
+    const parcelId = document.getElementById('map-parcela-select').value;
+    if (!parcelId) return;
+    
+    const polygon = state.mapPolygons && state.mapPolygons[parcelId];
+    if (!polygon || polygon.length < 3) {
+        showToast("Primero debes dibujar y guardar los linderos de la parcela", "error");
+        return;
+    }
+    
+    const spacingInput = document.getElementById('olivos-spacing');
+    const spacingMeters = parseFloat(spacingInput.value) || 10;
+    
+    if (spacingMeters < 5 || spacingMeters > 30) {
+        showToast("La distancia del marco debe estar entre 5 y 30 metros", "warning");
+        return;
+    }
+    
+    // Auto generate
+    let minLat = Infinity, maxLat = -Infinity;
+    let minLng = Infinity, maxLng = -Infinity;
+    polygon.forEach(p => {
+        if (p[0] < minLat) minLat = p[0];
+        if (p[0] > maxLat) maxLat = p[0];
+        if (p[1] < minLng) minLng = p[1];
+        if (p[1] > maxLng) maxLng = p[1];
+    });
+    
+    const lat0 = polygon[0][0];
+    const rad = Math.PI / 180;
+    const cosLat = Math.cos(lat0 * rad);
+    const mPerDegLat = 111132;
+    const mPerDegLng = mPerDegLat * cosLat;
+    
+    const latStep = spacingMeters / mPerDegLat;
+    const lngStep = spacingMeters / mPerDegLng;
+    
+    const generatedTrees = [];
+    let treeCount = 0;
+    
+    for (let lat = minLat + latStep/2; lat < maxLat; lat += latStep) {
+        for (let lng = minLng + lngStep/2; lng < maxLng; lng += lngStep) {
+            if (isPointInPolygon([lat, lng], polygon)) {
+                treeCount++;
+                generatedTrees.push({
+                    id: `tree-${Date.now()}-${treeCount}`,
+                    lat: lat,
+                    lng: lng,
+                    label: `Olivo #${treeCount}`,
+                    status: 'sano',
+                    notes: ''
+                });
+            }
+        }
+    }
+    
+    if (generatedTrees.length === 0) {
+        showToast("El terreno es demasiado estrecho para este marco de plantación", "warning");
+        return;
+    }
+    
+    if (!state.parcelTrees) state.parcelTrees = {};
+    state.parcelTrees[parcelId] = generatedTrees;
+    saveState();
+    
+    drawMapLayers();
+    updateParcelStatsPanel();
+    showToast(`Sembrados ${generatedTrees.length} olivos en cuadrícula`, "success");
+}
+
+function setOlivoEditMode(mode) {
+    currentOlivoEditMode = mode;
+    document.getElementById('btn-mode-olivo-add').classList.remove('active-mode');
+    document.getElementById('btn-mode-olivo-view').classList.remove('active-mode');
+    
+    document.getElementById('btn-mode-olivo-add').style.borderColor = '';
+    document.getElementById('btn-mode-olivo-add').style.background = '';
+    document.getElementById('btn-mode-olivo-add').style.color = '';
+    document.getElementById('btn-mode-olivo-view').style.borderColor = '';
+    document.getElementById('btn-mode-olivo-view').style.background = '';
+    document.getElementById('btn-mode-olivo-view').style.color = '';
+    
+    const activeBtn = document.getElementById(`btn-mode-olivo-${mode}`);
+    if (activeBtn) {
+        activeBtn.classList.add('active-mode');
+        activeBtn.style.borderColor = 'var(--primary)';
+    }
+    
+    if (mode === 'add') {
+        showToast("Toca el mapa dentro del polígono para añadir olivos", "info");
+    } else {
+        showToast("Toca cualquier olivo para ver o editar su estado de salud", "info");
+    }
+}
+
+function openEditOlivoModal(tree, parcelId) {
+    document.getElementById('edit-olivo-id').value = tree.id;
+    document.getElementById('edit-olivo-parcel-id').value = parcelId;
+    document.getElementById('edit-olivo-label').value = tree.label;
+    document.getElementById('edit-olivo-status').value = tree.status || 'sano';
+    document.getElementById('edit-olivo-notes').value = tree.notes || '';
+    
+    openModal('modal-edit-olivo');
+}
+
+function saveOlivoDetail(e) {
+    e.preventDefault();
+    const treeId = document.getElementById('edit-olivo-id').value;
+    const parcelId = document.getElementById('edit-olivo-parcel-id').value;
+    const label = document.getElementById('edit-olivo-label').value.trim();
+    const status = document.getElementById('edit-olivo-status').value;
+    const notes = document.getElementById('edit-olivo-notes').value.trim();
+    
+    if (!state.parcelTrees[parcelId]) return;
+    
+    const tree = state.parcelTrees[parcelId].find(t => t.id === treeId);
+    if (tree) {
+        tree.label = label;
+        tree.status = status;
+        tree.notes = notes;
+        saveState();
+        drawMapLayers();
+        updateParcelStatsPanel();
+        closeModal('modal-edit-olivo');
+        showToast("Detalle del olivo guardado", "success");
+    }
+}
+
+function deleteOlivoFromModal() {
+    const treeId = document.getElementById('edit-olivo-id').value;
+    const parcelId = document.getElementById('edit-olivo-parcel-id').value;
+    
+    if (confirm("¿Estás seguro de que quieres eliminar este olivo?")) {
+        if (state.parcelTrees[parcelId]) {
+            state.parcelTrees[parcelId] = state.parcelTrees[parcelId].filter(t => t.id !== treeId);
+            saveState();
+            drawMapLayers();
+            updateParcelStatsPanel();
+            closeModal('modal-edit-olivo');
+            showToast("Olivo eliminado", "info");
+        }
+    }
+}
+
+// --- RED DE RIEGO (REGADÍO) ---
+function startDrawingHose() {
+    const btn = document.getElementById('btn-draw-hose');
+    if (!btn) return;
+    
+    if (isDrawingHose) {
+        finishHoseDrawing();
+        return;
+    }
+    
+    isDrawingHose = true;
+    currentHosePoints = [];
+    if (tempHoseLine) {
+        leafletMap.removeLayer(tempHoseLine);
+        tempHoseLine = null;
+    }
+    
+    btn.innerHTML = `<i class="ph ph-floppy-disk"></i> Guardar Recorrido`;
+    btn.classList.add('active-mode');
+    document.getElementById('btn-cancel-hose').style.display = 'inline-flex';
+    document.getElementById('map-container').classList.add('crosshair-cursor-map');
+    
+    showToast("Toca el mapa consecutivamente para trazar la manguera", "info");
+}
+
+function cancelHoseDrawing() {
+    isDrawingHose = false;
+    currentHosePoints = [];
+    if (tempHoseLine) {
+        leafletMap.removeLayer(tempHoseLine);
+        tempHoseLine = null;
+    }
+    
+    const btn = document.getElementById('btn-draw-hose');
+    if (btn) {
+        btn.innerHTML = `<i class="ph ph-pencil"></i> Trazar Manguera`;
+        btn.classList.remove('active-mode');
+        btn.style.background = '';
+        btn.style.borderColor = '';
+        btn.style.color = '';
+    }
+    document.getElementById('btn-cancel-hose').style.display = 'none';
+    document.getElementById('map-container').classList.remove('crosshair-cursor-map');
+    showToast("Trazado cancelado", "info");
+}
+
+function deleteHose(index, parcelId) {
+    if (confirm("¿Deseas eliminar esta manguera y todos sus goteros?")) {
+        if (state.parcelHoses[parcelId]) {
+            state.parcelHoses[parcelId].splice(index, 1);
+            saveState();
+            drawMapLayers();
+            updateParcelStatsPanel();
+            showToast("Manguera eliminada con éxito", "info");
+        }
+    }
+}
+
+function interpolateHoseDrippers(points, spacingMeters, defaultPlant) {
+    if (points.length < 2 || spacingMeters <= 0) return [];
+    
+    const distances = [0];
+    for (let i = 1; i < points.length; i++) {
+        const dist = getHaversineDistance(points[i-1], points[i]);
+        distances.push(distances[i-1] + dist);
+    }
+    
+    const totalDistance = distances[distances.length - 1];
+    const drippers = [];
+    let dripperId = 1;
+    
+    for (let d = 0; d <= totalDistance; d += spacingMeters) {
+        let segmentIndex = 0;
+        for (let i = 1; i < distances.length; i++) {
+            if (distances[i] >= d) {
+                segmentIndex = i;
+                break;
+            }
+        }
+        if (segmentIndex === 0) segmentIndex = distances.length - 1;
+        
+        const dPrev = distances[segmentIndex - 1];
+        const dNext = distances[segmentIndex];
+        const segmentLength = dNext - dPrev;
+        
+        let t = 0;
+        if (segmentLength > 0) {
+            t = (d - dPrev) / segmentLength;
+        }
+        
+        const pPrev = points[segmentIndex - 1];
+        const pNext = points[segmentIndex];
+        
+        const lat = pPrev[0] + t * (pNext[0] - pPrev[0]);
+        const lng = pPrev[1] + t * (pNext[1] - pPrev[1]);
+        
+        drippers.push({
+            id: `dripper-${Date.now()}-${dripperId++}`,
+            lat: lat,
+            lng: lng,
+            distance: d.toFixed(1),
+            plant: defaultPlant || 'Tomate'
+        });
+    }
+    
+    return drippers;
+}
+
+function finishHoseDrawing() {
+    const parcelId = document.getElementById('map-parcela-select').value;
+    if (!parcelId) return;
+    
+    const btn = document.getElementById('btn-draw-hose');
+    if (btn) btn.innerHTML = `<i class="ph ph-pencil"></i> Trazar Manguera`;
+    
+    if (currentHosePoints.length < 2) {
+        showToast("Debes trazar al menos 2 vértices para crear la manguera", "error");
+        cancelHoseDrawing();
+        return;
+    }
+    
+    const spacingInput = document.getElementById('riego-spacing');
+    const plantInput = document.getElementById('riego-default-crop');
+    
+    const spacing = parseFloat(spacingInput.value) || 1.0;
+    const defaultPlant = plantInput.value.trim() || 'Tomate';
+    
+    const drippers = interpolateHoseDrippers(currentHosePoints, spacing, defaultPlant);
+    
+    if (!state.parcelHoses) state.parcelHoses = {};
+    if (!state.parcelHoses[parcelId]) state.parcelHoses[parcelId] = [];
+    
+    const newHose = {
+        points: currentHosePoints,
+        spacing: spacing,
+        defaultPlant: defaultPlant,
+        drippers: drippers
+    };
+    
+    state.parcelHoses[parcelId].push(newHose);
+    saveState();
+    
+    isDrawingHose = false;
+    currentHosePoints = [];
+    if (tempHoseLine) {
+        leafletMap.removeLayer(tempHoseLine);
+        tempHoseLine = null;
+    }
+    
+    if (btn) {
+        btn.classList.remove('active-mode');
+        btn.style.background = '';
+        btn.style.borderColor = '';
+        btn.style.color = '';
+    }
+    document.getElementById('btn-cancel-hose').style.display = 'none';
+    document.getElementById('map-container').classList.remove('crosshair-cursor-map');
+    
+    drawMapLayers();
+    updateParcelStatsPanel();
+    showToast(`Manguera guardada con ${drippers.length} goteros`, "success");
+}
+
+function openEditDripperModal(dripper, hoseIndex, parcelId) {
+    document.getElementById('edit-dripper-id').value = dripper.id;
+    document.getElementById('edit-dripper-hose-id').value = hoseIndex;
+    document.getElementById('edit-dripper-parcel-id').value = parcelId;
+    document.getElementById('edit-dripper-info').value = `Distancia: ${dripper.distance}m | Gotero #${dripper.id.split('-').pop()}`;
+    document.getElementById('edit-dripper-plant').value = dripper.plant || 'Tomate';
+    
+    openModal('modal-edit-dripper');
+}
+
+function saveDripperDetail(e) {
+    e.preventDefault();
+    const dripperId = document.getElementById('edit-dripper-id').value;
+    const hoseIndex = parseInt(document.getElementById('edit-dripper-hose-id').value);
+    const parcelId = document.getElementById('edit-dripper-parcel-id').value;
+    const plant = document.getElementById('edit-dripper-plant').value.trim();
+    
+    if (!state.parcelHoses || !state.parcelHoses[parcelId]) return;
+    const hose = state.parcelHoses[parcelId][hoseIndex];
+    if (hose) {
+        const dripper = hose.drippers.find(d => d.id === dripperId);
+        if (dripper) {
+            dripper.plant = plant;
+            saveState();
+            drawMapLayers();
+            updateParcelStatsPanel();
+            closeModal('modal-edit-dripper');
+            showToast("Cultivo del gotero guardado", "success");
+        }
+    }
+}
+
+// --- DRAW MAP LAYERS ---
+function drawMapLayers() {
+    if (!leafletMap) return;
+    
+    const parcelId = document.getElementById('map-parcela-select').value;
+    if (!parcelId) return;
+    
+    // Clear old elements from current parcel
+    if (treeMarkers[parcelId]) {
+        treeMarkers[parcelId].forEach(m => leafletMap.removeLayer(m));
+    }
+    treeMarkers[parcelId] = [];
+    
+    if (hoseLines[parcelId]) {
+        hoseLines[parcelId].forEach(l => leafletMap.removeLayer(l));
+    }
+    hoseLines[parcelId] = [];
+    
+    if (dripperMarkers[parcelId]) {
+        dripperMarkers[parcelId].forEach(m => leafletMap.removeLayer(m));
+    }
+    dripperMarkers[parcelId] = [];
+    
+    // Clean other parcels to avoid map noise
+    Object.keys(treeMarkers).forEach(pId => {
+        if (pId !== parcelId) {
+            treeMarkers[pId].forEach(m => leafletMap.removeLayer(m));
+            treeMarkers[pId] = [];
+        }
+    });
+    Object.keys(hoseLines).forEach(pId => {
+        if (pId !== parcelId) {
+            hoseLines[pId].forEach(l => leafletMap.removeLayer(l));
+            hoseLines[pId] = [];
+        }
+    });
+    Object.keys(dripperMarkers).forEach(pId => {
+        if (pId !== parcelId) {
+            dripperMarkers[pId].forEach(m => leafletMap.removeLayer(m));
+            dripperMarkers[pId] = [];
+        }
+    });
+    
+    const isOlivar = parcelId.startsWith('olivar');
+    
+    // 2. Render Olivos
+    if (isOlivar && currentCroquisTab === 'olivos') {
+        const trees = (state.parcelTrees && state.parcelTrees[parcelId]) || [];
+        trees.forEach(t => {
+            const statusClass = t.status === 'estres' ? 'status-estres' : (t.status === 'plaga' ? 'status-plaga' : '');
+            
+            const icon = L.divIcon({
+                className: `map-olivo-marker ${statusClass}`,
+                iconSize: [18, 18],
+                iconAnchor: [9, 9],
+                html: ''
+            });
+            
+            const marker = L.marker([t.lat, t.lng], { icon: icon }).addTo(leafletMap);
+            
+            let statusText = "Sano";
+            if (t.status === 'estres') statusText = "Estrés Hídrico";
+            if (t.status === 'plaga') statusText = "Plaga / Enfermedad";
+            
+            let tooltipContent = `<strong>${t.label}</strong><br>Salud: ${statusText}`;
+            if (t.notes) tooltipContent += `<br><em>"${t.notes}"</em>`;
+            
+            marker.bindTooltip(tooltipContent);
+            
+            marker.on('click', (e) => {
+                L.DomEvent.stopPropagation(e);
+                if (currentOlivoEditMode === 'view') {
+                    openEditOlivoModal(t, parcelId);
+                } else {
+                    if (confirm(`¿Quieres borrar el ${t.label}?`)) {
+                        state.parcelTrees[parcelId] = state.parcelTrees[parcelId].filter(x => x.id !== t.id);
+                        saveState();
+                        drawMapLayers();
+                        updateParcelStatsPanel();
+                        showToast("Olivo eliminado", "info");
+                    }
+                }
+            });
+            
+            treeMarkers[parcelId].push(marker);
+        });
+    }
+    
+    // 3. Render Riego (Huertos)
+    if (!isOlivar && currentCroquisTab === 'riego') {
+        const hoses = (state.parcelHoses && state.parcelHoses[parcelId]) || [];
+        hoses.forEach((h, hIndex) => {
+            const lineClass = isIrrigating ? 'hose-flow-animated' : '';
+            
+            const line = L.polyline(h.points, {
+                color: '#2563eb',
+                weight: 4.5,
+                className: lineClass
+            }).addTo(leafletMap);
+            
+            line.bindTooltip(`Línea Riego #${hIndex + 1} (${h.defaultPlant})`);
+            hoseLines[parcelId].push(line);
+            
+            const drippers = h.drippers || [];
+            drippers.forEach(d => {
+                const dripClass = isIrrigating ? 'simulating' : '';
+                const goteroIcon = L.divIcon({
+                    className: `map-gotero-marker ${dripClass}`,
+                    iconSize: [8, 8],
+                    iconAnchor: [4, 4]
+                });
+                
+                const marker = L.marker([d.lat, d.lng], { icon: goteroIcon }).addTo(leafletMap);
+                marker.bindTooltip(`Gotero #${d.id.split('-').pop()}<br>Sembrado: <strong>${d.plant}</strong><br>Posición: ${d.distance}m`);
+                
+                marker.on('click', (e) => {
+                    L.DomEvent.stopPropagation(e);
+                    openEditDripperModal(d, hIndex, parcelId);
+                });
+                
+                dripperMarkers[parcelId].push(marker);
+            });
+        });
+    }
+}
+
+function toggleIrrigationSimulation() {
+    const btn = document.getElementById('btn-simulate-irrigation');
+    if (!btn) return;
+    
+    isIrrigating = !isIrrigating;
+    
+    if (isIrrigating) {
+        btn.innerHTML = `<i class="ph ph-stop"></i> Detener Simulación`;
+        btn.style.backgroundColor = '#dc2626';
+        showToast("Riego encendido. Simulando flujo de agua en mangueras...", "success");
+    } else {
+        btn.innerHTML = `<i class="ph ph-play"></i> Iniciar Simulación de Riego`;
+        btn.style.backgroundColor = '#2563eb';
+        showToast("Riego apagado", "info");
+    }
+    
+    drawMapLayers();
 }
 
 // --- CALCULADORA DE DOSIS ---
