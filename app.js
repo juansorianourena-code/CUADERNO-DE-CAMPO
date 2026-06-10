@@ -2895,6 +2895,9 @@ async function printQRLabelBluetooth() {
         if (gattServer && gattServer.connected) {
             gattServer.disconnect();
         }
+    }
+}
+
 function deleteOlivarHarvest(harvestId) {
     if (confirm("¿Estás seguro de que quieres eliminar este registro de cosecha de aceituna?")) {
         state.olivar.cosechas = state.olivar.cosechas.filter(c => c.id !== harvestId);
