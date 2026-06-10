@@ -215,6 +215,17 @@
                         <span>Finca segura para recogida.</span>
                     </div>
 
+                    <!-- Registro de Plantaciones (Olivar) -->
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span class="card-title" style="margin: 0;"><i class="ph ph-tree"></i> Variedades / Olivos</span>
+                            <button class="btn" style="width: auto; padding: 6px 12px; font-size: 0.75rem; border-radius: 8px;" onclick="openAddPlantingModal()">Añadir Variedad</button>
+                        </div>
+                        <div id="olivar-plantings-list" class="item-grid" style="gap: 8px;">
+                            <!-- Variedades inyectadas -->
+                        </div>
+                    </div>
+
                     <!-- Tareas del Olivar -->
                     <div class="card">
                         <span class="card-title"><i class="ph ph-check-square"></i> Tareas de la Finca</span>
@@ -1273,6 +1284,16 @@
                         </select>
                     </div>
                     <div class="input-group">
+                        <label class="input-label">Variedad de Olivo</label>
+                        <select id="edit-olivo-variety-select" class="form-select" onchange="onOlivoVarietySelectChange()">
+                            <!-- Inyectado dinámicamente -->
+                        </select>
+                    </div>
+                    <div class="input-group hidden" id="group-olivo-new-variety">
+                        <label class="input-label" style="color: var(--secondary);">Nombre de la Nueva Variedad (Se añadirá a la lista de plantas)</label>
+                        <input type="text" id="edit-olivo-new-variety-input" class="form-input" placeholder="Ej: Hojiblanca, Arbequina de regadío...">
+                    </div>
+                    <div class="input-group">
                         <label class="input-label">Notas / Observaciones</label>
                         <textarea id="edit-olivo-notes" class="form-textarea" style="height: 70px;" placeholder="Añade detalles sobre el estado del árbol o plaga detectada..."></textarea>
                     </div>
@@ -1300,8 +1321,14 @@
                         <input type="text" id="edit-dripper-info" class="form-input" readonly style="background: rgba(0,0,0,0.03);">
                     </div>
                     <div class="input-group">
-                        <label class="input-label">Variedad / Cultivo Sembrado</label>
-                        <input type="text" id="edit-dripper-plant" class="form-input" required placeholder="Ej: Tomate Raf, Lechuga...">
+                        <label class="input-label">Cultivo / Variedad Asignada</label>
+                        <select id="edit-dripper-plant-select" class="form-select" onchange="onDripperPlantSelectChange()">
+                            <!-- Inyectado dinámicamente -->
+                        </select>
+                    </div>
+                    <div class="input-group hidden" id="group-dripper-new-plant">
+                        <label class="input-label" style="color: var(--secondary);">Nombre del Nuevo Cultivo (Se añadirá a la lista de plantas)</label>
+                        <input type="text" id="edit-dripper-new-plant-input" class="form-input" placeholder="Ej: Tomate Raf Ecológico, Berenjena...">
                     </div>
                     <button type="submit" class="btn" style="height: 44px; padding: 0;"><i class="ph ph-floppy-disk"></i> Guardar Cultivo</button>
                 </form>

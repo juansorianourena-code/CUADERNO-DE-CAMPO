@@ -93,6 +93,7 @@ function seedInitialData() {
     };
     state.olivar = {
         parcelas: { "olivar-general": "Olivar Principal" },
+        plantaciones: {},
         tareas: {},
         tratamientos: {},
         cosechas: [],
@@ -707,6 +708,7 @@ function loadState() {
             if (!state.olivar.parcelas || Object.keys(state.olivar.parcelas).length === 0) {
                 state.olivar.parcelas = { "olivar-general": "Olivar Principal" };
             }
+            if (!state.olivar.plantaciones) state.olivar.plantaciones = {};
             if (!state.olivar.tareas) state.olivar.tareas = {};
             if (!state.olivar.tratamientos) state.olivar.tratamientos = {};
             if (!state.olivar.cosechas) state.olivar.cosechas = [];
@@ -1390,9 +1392,10 @@ function addParcel(e) {
     showToast(`Creada: ${name}`, "success");
 }
 
-// --- PLANTINGS REGISTRY (Huerto) ---
+// --- PLANTINGS REGISTRY (Huerto & Olivar) ---
 function openAddPlantingModal() {
-    document.getElementById('modal-add-planting').querySelector('.sheet-title').innerText = 'Registrar Cultivo';
+    const isOlivar = (state.currentCultivoTab === 'olivar');
+    document.getElementById('modal-add-planting').querySelector('.sheet-title').innerText = isOlivar ? 'Registrar Variedad de Olivo' : 'Registrar Cultivo';
     document.getElementById('modal-add-planting').querySelector('form').reset();
     document.getElementById('plant-id').value = '';
     document.getElementById('plant-date').value = getTodayString();
@@ -1400,11 +1403,14 @@ function openAddPlantingModal() {
 }
 
 function openEditPlantingModal(plantingId, pId) {
-    const plantings = state.huerto.plantaciones[pId] || [];
+    const isOlivar = (state.currentCultivoTab === 'olivar');
+    const type = isOlivar ? 'olivar' : 'huerto';
+    if (!state[type].plantaciones) state[type].plantaciones = {};
+    const plantings = state[type].plantaciones[pId] || [];
     const p = plantings.find(pl => pl.id === plantingId);
     if (!p) return;
 
-    document.getElementById('modal-add-planting').querySelector('.sheet-title').innerText = 'Editar Cultivo';
+    document.getElementById('modal-add-planting').querySelector('.sheet-title').innerText = isOlivar ? 'Editar Variedad de Olivo' : 'Editar Cultivo';
     document.getElementById('plant-id').value = p.id;
     document.getElementById('plant-name').value = p.name;
     document.getElementById('plant-qty').value = p.qty;
@@ -1416,7 +1422,9 @@ function openEditPlantingModal(plantingId, pId) {
 
 function addPlanting(e) {
     e.preventDefault();
-    const pId = state.currentHuertoParcela;
+    const isOlivar = (state.currentCultivoTab === 'olivar');
+    const type = isOlivar ? 'olivar' : 'huerto';
+    const pId = isOlivar ? state.currentOlivarParcela : state.currentHuertoParcela;
     const name = document.getElementById('plant-name').value.trim();
     const qty = parseInt(document.getElementById('plant-qty').value) || 0;
     const cost = parseFloat(document.getElementById('plant-cost').value) || 0;
@@ -1426,18 +1434,18 @@ function addPlanting(e) {
 
     if (!name || qty <= 0 || cost < 0) return;
 
-    if (!state.huerto.plantaciones) state.huerto.plantaciones = {};
-    if (!state.huerto.plantaciones[pId]) state.huerto.plantaciones[pId] = [];
+    if (!state[type].plantaciones) state[type].plantaciones = {};
+    if (!state[type].plantaciones[pId]) state[type].plantaciones[pId] = [];
 
     if (idField) {
         // Edit mode
-        const p = state.huerto.plantaciones[pId].find(pl => pl.id === parseInt(idField));
+        const p = state[type].plantaciones[pId].find(pl => pl.id === parseInt(idField));
         if (p) {
             p.name = name;
             p.qty = qty;
             p.cost = cost;
             p.date = dateVal;
-            showToast("Plantación actualizada", "success");
+            showToast(isOlivar ? "Variedad actualizada" : "Plantación actualizada", "success");
         }
     } else {
         // Add mode
@@ -1450,45 +1458,54 @@ function addPlanting(e) {
             status: "active"
         };
 
-        state.huerto.plantaciones[pId].push(newPlanting);
+        state[type].plantaciones[pId].push(newPlanting);
 
         // Auto log to journal
         const totalCost = qty * cost;
-        const noteText = `Nueva plantación en ${state.huerto.parcelas[pId]}: ${qty} plantas de ${name} (Coste: ${cost.toFixed(2)}€/ud, Total: ${totalCost.toFixed(2)}€).`;
+        const parcelName = state[type].parcelas[pId] || (isOlivar ? 'Finca' : 'Parcela');
+        const noteText = isOlivar 
+            ? `Nueva variedad registrada en ${parcelName}: ${qty} olivos de ${name} (Coste: ${cost.toFixed(2)}€/ud, Total: ${totalCost.toFixed(2)}€).`
+            : `Nueva plantación en ${parcelName}: ${qty} plantas de ${name} (Coste: ${cost.toFixed(2)}€/ud, Total: ${totalCost.toFixed(2)}€).`;
         state.diario.push({
             id: Date.now() + 1,
             text: noteText,
             date: `${dateVal} ${getNowTimeString()}`,
-            photo: MOCK_PHOTOS.riego.url
+            photo: isOlivar ? MOCK_PHOTOS.olivar.url : MOCK_PHOTOS.riego.url
         });
-        showToast("Plantación guardada", "success");
+        showToast(isOlivar ? "Variedad guardada" : "Plantación guardada", "success");
     }
 
     saveState();
     closeModal('modal-add-planting');
     document.getElementById('modal-add-planting').querySelector('form').reset();
     document.getElementById('plant-id').value = '';
-    renderHuerto();
+    renderCampo();
 }
 
 function deletePlanting(plantingId, pId) {
-    if (confirm("¿Estás seguro de que quieres eliminar esta plantación?")) {
-        state.huerto.plantaciones[pId] = state.huerto.plantaciones[pId].filter(p => p.id !== plantingId);
+    const isOlivar = (state.currentCultivoTab === 'olivar');
+    const type = isOlivar ? 'olivar' : 'huerto';
+    const msg = isOlivar ? "¿Estás seguro de que quieres eliminar esta variedad?" : "¿Estás seguro de que quieres eliminar esta plantación?";
+    if (confirm(msg)) {
+        state[type].plantaciones[pId] = state[type].plantaciones[pId].filter(p => p.id !== plantingId);
         saveState();
-        renderHuerto();
-        showToast("Plantación eliminada", "info");
+        renderCampo();
+        showToast(isOlivar ? "Variedad eliminada" : "Plantación eliminada", "info");
     }
 }
 
 function renderPlantings(pId) {
-    const listEl = document.getElementById('huerto-plantings-list');
+    const isOlivar = (state.currentCultivoTab === 'olivar');
+    const type = isOlivar ? 'olivar' : 'huerto';
+    const listEl = document.getElementById(isOlivar ? 'olivar-plantings-list' : 'huerto-plantings-list');
+    if (!listEl) return;
     listEl.innerHTML = '';
 
-    if (!state.huerto.plantaciones) state.huerto.plantaciones = {};
-    const plantings = state.huerto.plantaciones[pId] || [];
+    if (!state[type].plantaciones) state[type].plantaciones = {};
+    const plantings = state[type].plantaciones[pId] || [];
 
     if (plantings.length === 0) {
-        listEl.innerHTML = `<div class="empty-state" style="padding: 10px;"><span style="font-size:0.8rem;">Ningún cultivo registrado en esta parcela.</span></div>`;
+        listEl.innerHTML = `<div class="empty-state" style="padding: 10px;"><span style="font-size:0.8rem;">${isOlivar ? 'Ninguna variedad registrada en esta finca.' : 'Ningún cultivo registrado en esta parcela.'}</span></div>`;
         return;
     }
 
@@ -1501,7 +1518,7 @@ function renderPlantings(pId) {
                 <span class="item-title">${escapeHTML(p.name)}</span>
                 <span class="item-info-line" style="font-weight:700;">${p.date}</span>
             </div>
-            <div class="item-info-line">Cantidad: <span>${p.qty} plantas</span></div>
+            <div class="item-info-line">Cantidad: <span>${p.qty} ${isOlivar ? 'olivos' : 'plantas'}</span></div>
             <div class="item-info-line">Precio unitario: <span>${p.cost.toFixed(2)} €</span></div>
             <div class="item-info-line" style="font-weight: 700; color: var(--text-primary); margin-top: 2px;">
                 Coste total: <span style="color: var(--primary-light);">${totalCost.toFixed(2)} €</span>
@@ -1562,11 +1579,14 @@ function renderOlivar() {
     // Ensure lists exist for this parcel key
     if (!state.olivar.tareas[pId]) state.olivar.tareas[pId] = [];
     if (!state.olivar.tratamientos[pId]) state.olivar.tratamientos[pId] = [];
+    if (!state.olivar.plantaciones) state.olivar.plantaciones = {};
+    if (!state.olivar.plantaciones[pId]) state.olivar.plantaciones[pId] = [];
     if (!state.olivar.riego) state.olivar.riego = {};
     if (!state.olivar.fertilizaciones) state.olivar.fertilizaciones = {};
     if (!state.olivar.plagaAlertas) state.olivar.plagaAlertas = {};
 
     renderTasks('olivar', pId);
+    renderPlantings(pId);
     renderTreatments('olivar', pId);
     checkSafetyPeriod('olivar', pId);
     renderOlivarHarvestHistory();
@@ -3651,7 +3671,68 @@ function openEditOlivoModal(tree, parcelId) {
     document.getElementById('edit-olivo-status').value = tree.status || 'sano';
     document.getElementById('edit-olivo-notes').value = tree.notes || '';
     
+    // Populate varieties dropdown
+    const selectEl = document.getElementById('edit-olivo-variety-select');
+    if (selectEl) {
+        selectEl.innerHTML = '';
+        const defaultVarieties = ["Picual", "Arbequina", "Cornicabra", "Hojiblanca", "Manzanilla"];
+        const customVarieties = [];
+        if (state.olivar.plantaciones && state.olivar.plantaciones[parcelId]) {
+            state.olivar.plantaciones[parcelId].forEach(p => {
+                if (p.name && !defaultVarieties.includes(p.name)) {
+                    customVarieties.push(p.name);
+                }
+            });
+        }
+        
+        const allVarieties = [...defaultVarieties, ...customVarieties];
+        allVarieties.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v;
+            opt.innerText = v;
+            selectEl.appendChild(opt);
+        });
+
+        // Option to add new variety
+        const optNew = document.createElement('option');
+        optNew.value = '__NEW__';
+        optNew.innerText = '➕ Añadir nueva variedad...';
+        selectEl.appendChild(optNew);
+
+        // Select active variety
+        const currentVariety = tree.variety || 'Picual';
+        if (allVarieties.includes(currentVariety)) {
+            selectEl.value = currentVariety;
+        } else {
+            const opt = document.createElement('option');
+            opt.value = currentVariety;
+            opt.innerText = currentVariety;
+            selectEl.insertBefore(opt, optNew);
+            selectEl.value = currentVariety;
+        }
+    }
+
+    // Hide new variety group and clear input
+    const groupNew = document.getElementById('group-olivo-new-variety');
+    if (groupNew) groupNew.classList.add('hidden');
+    const inputNew = document.getElementById('edit-olivo-new-variety-input');
+    if (inputNew) inputNew.value = '';
+
     openModal('modal-edit-olivo');
+}
+
+function onOlivoVarietySelectChange() {
+    const selectEl = document.getElementById('edit-olivo-variety-select');
+    const groupNew = document.getElementById('group-olivo-new-variety');
+    if (selectEl && groupNew) {
+        if (selectEl.value === '__NEW__') {
+            groupNew.classList.remove('hidden');
+            const inputNew = document.getElementById('edit-olivo-new-variety-input');
+            if (inputNew) inputNew.focus();
+        } else {
+            groupNew.classList.add('hidden');
+        }
+    }
 }
 
 function saveOlivoDetail(e) {
@@ -3662,6 +3743,43 @@ function saveOlivoDetail(e) {
     const status = document.getElementById('edit-olivo-status').value;
     const notes = document.getElementById('edit-olivo-notes').value.trim();
     
+    const selectEl = document.getElementById('edit-olivo-variety-select');
+    let variety = selectEl ? selectEl.value : 'Picual';
+
+    if (variety === '__NEW__') {
+        const inputNew = document.getElementById('edit-olivo-new-variety-input');
+        const newVariety = inputNew ? inputNew.value.trim() : '';
+        if (!newVariety) {
+            showToast("Por favor introduce el nombre de la nueva variedad", "warning");
+            return;
+        }
+        variety = newVariety;
+
+        // Register new variety in state.olivar.plantaciones
+        if (!state.olivar.plantaciones) state.olivar.plantaciones = {};
+        if (!state.olivar.plantaciones[parcelId]) state.olivar.plantaciones[parcelId] = [];
+
+        const exists = state.olivar.plantaciones[parcelId].some(p => p.name.toLowerCase() === variety.toLowerCase());
+        if (!exists) {
+            state.olivar.plantaciones[parcelId].push({
+                id: Date.now(),
+                name: variety,
+                qty: 1,
+                cost: 0,
+                date: getTodayString(),
+                status: "active"
+            });
+            // Auto log to journal
+            const noteText = `Nueva variedad registrada en Olivar (${state.olivar.parcelas[parcelId] || 'Finca'}): ${variety}`;
+            state.diario.push({
+                id: Date.now() + 1,
+                text: noteText,
+                date: `${getTodayString()} ${getNowTimeString()}`,
+                photo: MOCK_PHOTOS.olivar.url
+            });
+        }
+    }
+
     if (!state.parcelTrees[parcelId]) return;
     
     const tree = state.parcelTrees[parcelId].find(t => t.id === treeId);
@@ -3669,11 +3787,13 @@ function saveOlivoDetail(e) {
         tree.label = label;
         tree.status = status;
         tree.notes = notes;
+        tree.variety = variety;
         saveState();
         drawMapLayers();
         updateParcelStatsPanel();
         closeModal('modal-edit-olivo');
         showToast("Detalle del olivo guardado", "success");
+        renderCampo();
     }
 }
 
@@ -3861,9 +3981,69 @@ function openEditDripperModal(dripper, hoseIndex, parcelId) {
     document.getElementById('edit-dripper-hose-id').value = hoseIndex;
     document.getElementById('edit-dripper-parcel-id').value = parcelId;
     document.getElementById('edit-dripper-info').value = `Distancia: ${dripper.distance}m | Gotero #${dripper.id.split('-').pop()}`;
-    document.getElementById('edit-dripper-plant').value = dripper.plant || 'Tomate';
     
+    // Populate crops dropdown
+    const selectEl = document.getElementById('edit-dripper-plant-select');
+    if (selectEl) {
+        selectEl.innerHTML = '';
+        const defaultCrops = ["Tomate", "Pimiento", "Berenjena", "Calabacín", "Lechuga", "Cebolla"];
+        const customCrops = [];
+        if (state.huerto.plantaciones && state.huerto.plantaciones[parcelId]) {
+            state.huerto.plantaciones[parcelId].forEach(p => {
+                if (p.name && !defaultCrops.includes(p.name)) {
+                    customCrops.push(p.name);
+                }
+            });
+        }
+        
+        const allCrops = [...defaultCrops, ...customCrops];
+        allCrops.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.innerText = c;
+            selectEl.appendChild(opt);
+        });
+
+        // Option to add new crop
+        const optNew = document.createElement('option');
+        optNew.value = '__NEW__';
+        optNew.innerText = '➕ Añadir nuevo cultivo...';
+        selectEl.appendChild(optNew);
+
+        // Select current plant
+        const currentPlant = dripper.plant || 'Tomate';
+        if (allCrops.includes(currentPlant)) {
+            selectEl.value = currentPlant;
+        } else {
+            const opt = document.createElement('option');
+            opt.value = currentPlant;
+            opt.innerText = currentPlant;
+            selectEl.insertBefore(opt, optNew);
+            selectEl.value = currentPlant;
+        }
+    }
+
+    // Hide new plant group and clear input
+    const groupNew = document.getElementById('group-dripper-new-plant');
+    if (groupNew) groupNew.classList.add('hidden');
+    const inputNew = document.getElementById('edit-dripper-new-plant-input');
+    if (inputNew) inputNew.value = '';
+
     openModal('modal-edit-dripper');
+}
+
+function onDripperPlantSelectChange() {
+    const selectEl = document.getElementById('edit-dripper-plant-select');
+    const groupNew = document.getElementById('group-dripper-new-plant');
+    if (selectEl && groupNew) {
+        if (selectEl.value === '__NEW__') {
+            groupNew.classList.remove('hidden');
+            const inputNew = document.getElementById('edit-dripper-new-plant-input');
+            if (inputNew) inputNew.focus();
+        } else {
+            groupNew.classList.add('hidden');
+        }
+    }
 }
 
 function saveDripperDetail(e) {
@@ -3871,8 +4051,44 @@ function saveDripperDetail(e) {
     const dripperId = document.getElementById('edit-dripper-id').value;
     const hoseIndex = parseInt(document.getElementById('edit-dripper-hose-id').value);
     const parcelId = document.getElementById('edit-dripper-parcel-id').value;
-    const plant = document.getElementById('edit-dripper-plant').value.trim();
     
+    const selectEl = document.getElementById('edit-dripper-plant-select');
+    let plant = selectEl ? selectEl.value : 'Tomate';
+
+    if (plant === '__NEW__') {
+        const inputNew = document.getElementById('edit-dripper-new-plant-input');
+        const newPlantName = inputNew ? inputNew.value.trim() : '';
+        if (!newPlantName) {
+            showToast("Por favor introduce el nombre del nuevo cultivo", "warning");
+            return;
+        }
+        plant = newPlantName;
+
+        // Register new crop in state.huerto.plantaciones
+        if (!state.huerto.plantaciones) state.huerto.plantaciones = {};
+        if (!state.huerto.plantaciones[parcelId]) state.huerto.plantaciones[parcelId] = [];
+
+        const exists = state.huerto.plantaciones[parcelId].some(p => p.name.toLowerCase() === plant.toLowerCase());
+        if (!exists) {
+            state.huerto.plantaciones[parcelId].push({
+                id: Date.now(),
+                name: plant,
+                qty: 1,
+                cost: 0,
+                date: getTodayString(),
+                status: "active"
+            });
+            // Auto log to journal
+            const noteText = `Nuevo cultivo registrado en Huerto (${state.huerto.parcelas[parcelId] || 'Parcela'}): ${plant}`;
+            state.diario.push({
+                id: Date.now() + 1,
+                text: noteText,
+                date: `${getTodayString()} ${getNowTimeString()}`,
+                photo: MOCK_PHOTOS.riego.url
+            });
+        }
+    }
+
     if (!state.parcelHoses || !state.parcelHoses[parcelId]) return;
     const hose = state.parcelHoses[parcelId][hoseIndex];
     if (hose) {
@@ -3884,6 +4100,7 @@ function saveDripperDetail(e) {
             updateParcelStatsPanel();
             closeModal('modal-edit-dripper');
             showToast("Cultivo del gotero guardado", "success");
+            renderCampo();
         }
     }
 }
