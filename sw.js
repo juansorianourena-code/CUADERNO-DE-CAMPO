@@ -1,9 +1,9 @@
-const CACHE_NAME = 'campo-digital-v25';
+const CACHE_NAME = 'campo-digital-v26';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=25',
-  './app.js?v=25',
+  './styles.css?v=26',
+  './app.js?v=26',
   './manifest.json',
   './icon.png',
   './icon-512.png',
